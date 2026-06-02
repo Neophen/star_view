@@ -75,6 +75,7 @@ defmodule Mix.Tasks.StarView.Trust do
 
     validate_host!(host)
     validate_ip!(ip)
+    validate_hosts_entry!(host, ip, hosts_file)
 
     if confirmed?(host, yes?, dry_run?) do
       ensure_mkcert!(dry_run?)
@@ -128,17 +129,24 @@ defmodule Mix.Tasks.StarView.Trust do
   @doc false
   def hosts_entry_ip(contents, host) do
     contents
+    |> hosts_entry_ips(host)
+    |> List.first()
+  end
+
+  @doc false
+  def hosts_entry_ips(contents, host) do
+    contents
     |> String.split("\n")
-    |> Enum.find_value(fn line ->
+    |> Enum.flat_map(fn line ->
       line
       |> strip_hosts_comment()
       |> String.split()
       |> case do
         [ip | aliases] ->
-          if host in aliases, do: ip
+          if host in aliases, do: [ip], else: []
 
         _ ->
-          nil
+          []
       end
     end)
   end
@@ -167,18 +175,15 @@ defmodule Mix.Tasks.StarView.Trust do
   defp add_hosts_entry(host, ip, hosts_file, dry_run?) do
     case File.read(hosts_file) do
       {:ok, contents} ->
-        case hosts_entry_ip(contents, host) do
-          ^ip ->
+        case hosts_entry_status(contents, host, ip) do
+          :present ->
             Mix.shell().info("#{host} already exists in #{hosts_file}.")
 
-          nil ->
+          :missing ->
             append_hosts_entry(host, ip, hosts_file, dry_run?)
 
-          existing_ip ->
-            Mix.shell().error("""
-            #{host} already exists in #{hosts_file} with IP #{existing_ip}.
-            Leaving it unchanged.
-            """)
+          {:conflict, existing_ips} ->
+            raise_hosts_conflict!(host, hosts_file, existing_ips)
         end
 
       {:error, reason} ->
@@ -187,14 +192,46 @@ defmodule Mix.Tasks.StarView.Trust do
     end
   end
 
+  defp validate_hosts_entry!(host, ip, hosts_file) do
+    case File.read(hosts_file) do
+      {:ok, contents} ->
+        case hosts_entry_status(contents, host, ip) do
+          {:conflict, existing_ips} -> raise_hosts_conflict!(host, hosts_file, existing_ips)
+          _ -> :ok
+        end
+
+      {:error, _reason} ->
+        :ok
+    end
+  end
+
+  defp hosts_entry_status(contents, host, ip) do
+    existing_ips = contents |> hosts_entry_ips(host) |> Enum.uniq()
+
+    cond do
+      existing_ips == [] -> :missing
+      Enum.all?(existing_ips, &(&1 == ip)) -> :present
+      true -> {:conflict, existing_ips}
+    end
+  end
+
+  defp raise_hosts_conflict!(host, hosts_file, existing_ips) do
+    Mix.raise("""
+    #{host} already exists in #{hosts_file} with IP #{Enum.join(existing_ips, ", ")}.
+    Leaving it unchanged.
+    """)
+  end
+
   defp append_hosts_entry(host, ip, hosts_file, dry_run?) do
+    command = hosts_append_command(host, ip, hosts_file)
+
     Mix.shell().info("Adding #{host} to #{hosts_file} with sudo.")
 
-    run_command(
-      "sudo",
-      ["-p", "Password: ", "/bin/sh", "-c", hosts_append_command(host, ip, hosts_file)],
-      dry_run?
-    )
+    if dry_run? do
+      Mix.shell().info("Would run: #{format_command("sudo", ["/bin/sh", "-c", command])}")
+    else
+      run_sudo_command(command, host, ip)
+    end
   end
 
   defp install_mkcert_ca(dry_run?) do
@@ -282,6 +319,120 @@ defmodule Mix.Tasks.StarView.Trust do
       status ->
         Mix.raise("Command failed with status #{status}: #{command}")
     end
+  end
+
+  defp run_sudo_command(command, host, ip) do
+    if windows?(:os.type()) do
+      run_privileged_fallback_command(command, host: host, ip: ip)
+    else
+      case System.cmd("sudo", sudo_probe_args(command), stderr_to_stdout: true) do
+        {_output, 0} ->
+          :ok
+
+        {_output, _status} ->
+          run_privileged_fallback_command(command, host: host, ip: ip)
+      end
+    end
+  end
+
+  @doc false
+  def sudo_probe_args(command) do
+    ["-n", "/bin/sh", "-c", command]
+  end
+
+  defp run_privileged_fallback_command(command, opts) do
+    case privileged_fallback_command(
+           command,
+           :os.type(),
+           System.find_executable("osascript"),
+           opts
+         ) do
+      {:system, executable, args} ->
+        run_system_command(executable, args)
+
+      {:shell, shell_command} ->
+        run_shell_command(shell_command)
+
+      {:error, message} ->
+        Mix.raise(message)
+    end
+  end
+
+  @doc false
+  def privileged_fallback_command(command, os_type, osascript_executable, opts \\ []) do
+    cond do
+      macos?(os_type) and is_binary(osascript_executable) ->
+        script = "do shell script #{applescript_quote(command)} with administrator privileges"
+        {:system, osascript_executable, ["-e", script]}
+
+      windows?(os_type) ->
+        {:error, windows_unsupported_message(command, opts)}
+
+      true ->
+        {:shell, format_command("sudo", ["-p", "Password: ", "/bin/sh", "-c", command])}
+    end
+  end
+
+  defp run_system_command(executable, args) do
+    case System.cmd(executable, args, stderr_to_stdout: true) do
+      {_output, 0} ->
+        :ok
+
+      {output, status} ->
+        Mix.raise(
+          "Command failed with status #{status}: #{format_command(executable, args)}\n#{output}"
+        )
+    end
+  end
+
+  defp run_shell_command(command) do
+    case Mix.shell().cmd(command) do
+      0 ->
+        :ok
+
+      status ->
+        Mix.raise("Command failed with status #{status}: #{command}")
+    end
+  end
+
+  defp windows_unsupported_message(command, opts) do
+    host = Keyword.get(opts, :host, "your-starview-host.test")
+    ip = Keyword.get(opts, :ip, @default_ip)
+
+    """
+    Automatic StarView trust setup is not supported on Windows yet.
+
+    Add this line to your Windows hosts file from an elevated editor or terminal:
+
+        #{ip} #{host}
+
+    Hosts file:
+
+        C:\\Windows\\System32\\drivers\\etc\\hosts
+
+    Then generate the development certificate manually with mkcert. The Unix
+    command StarView would use on macOS/Linux is shown for troubleshooting only:
+
+        #{command}
+    """
+  end
+
+  defp macos?(os_type) do
+    match?({:unix, :darwin}, os_type)
+  end
+
+  defp windows?(os_type) do
+    match?({:win32, _}, os_type)
+  end
+
+  @doc false
+  def applescript_quote(value) do
+    escaped =
+      value
+      |> String.replace("\\", "\\\\")
+      |> String.replace("\"", "\\\"")
+
+    "\"#{escaped}\""
   end
 
   defp validate_args!([], []), do: :ok
