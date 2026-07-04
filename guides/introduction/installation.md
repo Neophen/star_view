@@ -56,7 +56,7 @@ mix igniter.install star_view --no-stream-dedup --no-https --no-example
 ```elixir
 def deps do
   [
-    {:star_view, "~> 0.3.17"}
+    {:star_view, "~> 0.3.18"}
   ]
 end
 ```

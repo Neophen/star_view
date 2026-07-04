@@ -6,6 +6,7 @@ import StarView.Controller, only: [init_signals: 1]
 
 attr :conn, :map, required: true
 attr :lang, :string, default: "en"
+attr :theme, :string, default: nil
 attr :body_attrs, :map, default: %{}
 
 # Slots
@@ -15,10 +16,36 @@ slot :head
 @spec app(map()) :: Phoenix.LiveView.Rendered.t()
 def app(assigns) do
   ~H"""
-  <.root lang={@lang} body_attrs={@body_attrs}>
+  <.root lang={@lang} theme={@theme} body_attrs={@body_attrs}>
     <:head :if={@head != []}>{render_slot(@head)}</:head>
     <main data-signals={init_signals(@conn)}>
-      <h2>This is the app</h2>
+      {render_slot(@inner_block)}
+    </main>
+  </.root>
+  """
+end
+
+attr :conn, :map, required: true
+attr :lang, :string, default: "en"
+attr :theme, :string, default: nil
+attr :body_attrs, :map, default: %{}
+
+# Slots
+slot :inner_block, required: true
+slot :head
+
+@spec auth(map()) :: Phoenix.LiveView.Rendered.t()
+def auth(assigns) do
+  ~H"""
+  <.root
+    lang={@lang}
+    theme={@theme}
+    html_class="h-full bg-base-200"
+    body_class="h-full"
+    body_attrs={@body_attrs}
+  >
+    <:head :if={@head != []}>{render_slot(@head)}</:head>
+    <main data-signals={init_signals(@conn)}>
       {render_slot(@inner_block)}
     </main>
   </.root>
@@ -29,7 +56,10 @@ end
 # Root Layout
 
 attr :lang, :string, default: "en"
+attr :theme, :string, default: nil
 attr :body_attrs, :map, default: %{}
+attr :html_class, :string, default: nil
+attr :body_class, :string, default: nil
 # Slots
 slot :inner_block, required: true
 slot :head
@@ -37,7 +67,7 @@ slot :head
 defp root(assigns) do
   ~H"""
   <!DOCTYPE html>
-  <html lang={@lang}>
+  <html lang={@lang} class={@html_class} data-theme={@theme}>
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -48,8 +78,7 @@ defp root(assigns) do
       <.data_star_js />
       {render_slot(@head)}
     </head>
-    <body {csrf_signal()} {@body_attrs}>
-      <h1>This is the root!!</h1>
+    <body {csrf_signal()} {@body_attrs} class={@body_class}>
       {render_slot(@inner_block)}
     </body>
   </html>

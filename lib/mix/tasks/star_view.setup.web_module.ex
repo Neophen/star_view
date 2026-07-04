@@ -70,13 +70,21 @@ if Code.ensure_loaded?(Igniter) do
     defp create_layout_module(igniter, web_module) do
       layout_module = layout_module(web_module)
 
-      template =
-        Path.join(:code.priv_dir(:star_view), "templates/layout.eex")
-        |> EEx.eval_file(web_module: web_module)
+      # `create_module` does not forward `:on_exists` to `create_new_file`, so
+      # guard explicitly to keep re-runs from reporting "already exists" issues.
+      {exists?, igniter} = Igniter.Project.Module.module_exists(igniter, layout_module)
 
-      igniter
-      |> Igniter.Project.Module.create_module(layout_module, template, on_exists: :skip)
-      |> Igniter.add_notice("Generated #{inspect(layout_module)}.")
+      if exists? do
+        igniter
+      else
+        template =
+          Path.join(:code.priv_dir(:star_view), "templates/layout.eex")
+          |> EEx.eval_file(web_module: web_module)
+
+        igniter
+        |> Igniter.Project.Module.create_module(layout_module, template)
+        |> Igniter.add_notice("Generated #{inspect(layout_module)}.")
+      end
     end
 
     defp ensure_star_view_section(zipper, web_module) do

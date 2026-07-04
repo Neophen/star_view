@@ -1,0 +1,145 @@
+@moduledoc """
+Magic-link sign-in page rendered with StarView.
+
+Shows an email form, requests a magic link through
+`<%= inspect accounts_module %>.request_magic_link/2`, and swaps to a
+"check your email" state without reloading the page.
+
+Also implements the `AshAuthentication.Phoenix.Controller` callbacks
+(`success/4`, `failure/3`, `sign_out/2`) used by the auth routes.
+"""
+
+use <%= inspect web_module %>, :star_view
+use AshAuthentication.Phoenix.Controller
+
+require Logger
+
+@impl StarView
+def mount(conn, _params) do
+  conn
+  |> signal(:email, "")
+  |> signal(:sent, false)
+  |> signal(:error_message, "")
+end
+
+@impl StarView
+def render(assigns) do
+  ~H"""
+  <Layout.auth conn={@conn}>
+    <div class="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div class="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 class="mt-6 text-center text-2xl/9 font-bold tracking-tight">
+          {dgettext("auth", "Sign in to your account")}
+        </h2>
+      </div>
+
+      <div class="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
+        <div class="bg-base-100 px-6 py-12 shadow-sm sm:rounded-lg sm:px-12">
+          <.email_form />
+        </div>
+      </div>
+    </div>
+  </Layout.auth>
+  """
+end
+
+def email_form(assigns) do
+  ~H"""
+  <div>
+    <form class="space-y-6" data-show="!$sent" data-on:submit__prevent={post("magic_link")}>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">{dgettext("auth", "Email address")}</legend>
+        <input type="email" required autocomplete="email" class="input w-full" data-bind:email />
+      </fieldset>
+
+      <p class="text-sm text-error" data-show="$error_message" data-text="$error_message"></p>
+
+      <button type="submit" class="btn btn-primary w-full">
+        {dgettext("auth", "Sign in")}
+      </button>
+    </form>
+
+    <div data-show="$sent" class="space-y-2 text-center">
+      <h3 class="text-base font-semibold">
+        {dgettext("auth", "Check your email")}
+      </h3>
+      <p class="text-sm text-base-content/70">
+        {dgettext("auth", "We sent a sign-in link to")}
+        <span class="font-medium" data-text="$email"></span>.
+      </p>
+    </div>
+  </div>
+  """
+end
+
+@impl StarView
+def handle_event("magic_link", %{"email" => email}, conn) do
+  case String.trim(to_string(email)) do
+    "" ->
+      signal(conn, :error_message, dgettext("auth", "Please enter your email address."))
+
+    email ->
+      # The magic-link request action is guarded by the
+      # `AshAuthenticationInteraction` policy bypass, so it must run inside an
+      # AshAuthentication interaction context or it is forbidden before it can
+      # generate a token / send the email.
+      case <%= inspect accounts_module %>.request_magic_link(email,
+             context: %{private: %{ash_authentication?: true}}
+           ) do
+        {:error, error} ->
+          Logger.error("Magic link request failed: #{inspect(error)}")
+
+          signal(
+            conn,
+            :error_message,
+            dgettext("auth", "Something went wrong. Please try again.")
+          )
+
+        _ok ->
+          # Always reports success regardless of whether the account exists,
+          # so we don't leak which emails are registered.
+          conn
+          |> signal(:error_message, "")
+          |> signal(:email, email)
+          |> signal(:sent, true)
+      end
+  end
+end
+
+def handle_event("magic_link", _signals, conn) do
+  signal(conn, :error_message, dgettext("auth", "Please enter your email address."))
+end
+
+def success(conn, activity, user, _token) do
+  return_to = get_session(conn, :return_to) || ~p"/"
+
+  message =
+    case activity do
+      {:confirm_new_user, :confirm} -> "Your email address has now been confirmed"
+      {:password, :reset} -> "Your password has successfully been reset"
+      _ -> "You are now signed in"
+    end
+
+  conn
+  |> delete_session(:return_to)
+  |> store_in_session(user)
+  # If your resource has a different name, update the assign name here (i.e :current_admin)
+  |> assign(:current_user, user)
+  |> put_flash(:info, message)
+  |> redirect(to: return_to)
+end
+
+def failure(conn, _activity, _reason) do
+  conn
+  |> put_flash(:error, "Incorrect email or password")
+  |> redirect(to: ~p"/auth/sign-in")
+end
+
+def sign_out(conn, _params) do
+  return_to = get_session(conn, :return_to) || ~p"/"
+
+  conn
+  |> clear_session(<%= inspect otp_app %>)
+  |> put_flash(:info, "You are now signed out")
+  |> redirect(to: return_to)
+end

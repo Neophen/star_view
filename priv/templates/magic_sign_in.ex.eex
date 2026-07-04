@@ -1,0 +1,94 @@
+@moduledoc """
+Magic-link landing page rendered with StarView.
+
+The magic-link email points at `GET /magic_link/:token`. The `magic_link`
+strategy should set `require_interaction? true`, so the user is never signed
+in on a plain page load — the page verifies the token and renders a confirm
+button that POSTs back to `submit/2` to exchange the token for a session.
+"""
+
+use <%= inspect web_module %>, :star_view
+
+import AshAuthentication.Plug.Helpers, only: [store_in_session: 2]
+
+alias <%= inspect accounts_module %>
+alias <%= inspect user_module %>
+alias AshAuthentication.Jwt.Config
+
+# GET /magic_link/:token — landing page the magic-link email points at.
+@impl StarView
+def mount(conn, %{"token" => token}) do
+  case verify_token(token) do
+    {:ok, _email} ->
+      conn
+      |> assign(:token, token)
+      |> assign(:page_title, "Sign in")
+
+    :error ->
+      conn
+      |> put_flash(:error, "That sign-in link is invalid or has expired.")
+      |> redirect(to: ~p"/auth/sign-in?reason=invalid_link")
+  end
+end
+
+def mount(conn, _params) do
+  redirect(conn, to: ~p"/auth/sign-in?reason=invalid_link")
+end
+
+# POST /magic_link/:token — a real form submission (not an SSE event), so we
+# can set the session cookie and issue a normal redirect. Exchanges the token
+# for a signed-in user via the magic-link sign-in action.
+def submit(conn, %{"token" => token}) do
+  case Accounts.sign_in_with_magic_link(token, %{},
+         context: %{private: %{ash_authentication?: true}}
+       ) do
+    {:ok, user} ->
+      conn
+      |> store_in_session(user)
+      |> assign(:current_user, user)
+      |> put_flash(:info, "You are now signed in.")
+      |> redirect(to: get_session(conn, :return_to) || ~p"/")
+
+    {:error, _error} ->
+      conn
+      |> put_flash(:error, "We couldn't sign you in. Please request a new sign-in link.")
+      |> redirect(to: ~p"/auth/sign-in?reason=invalid_link")
+  end
+end
+
+defp verify_token(token) when is_binary(token) do
+  signer = Config.token_signer(User)
+
+  with {:ok, %{"identity" => identity} = claims} <- Joken.verify(token, signer),
+       defaults <- Config.default_claims(User),
+       {:ok, _claims} <- Joken.validate(defaults, claims, User) do
+    {:ok, identity}
+  else
+    _ -> :error
+  end
+end
+
+defp verify_token(_), do: :error
+
+@impl StarView
+def render(assigns) do
+  ~H"""
+  <Layout.auth conn={@conn}>
+    <div class="grid min-h-screen place-items-center bg-base-100 px-4">
+      <div class="w-full max-w-sm text-center">
+        <h1 class="text-2xl font-bold mb-2">{dgettext("auth", "Sign in")}</h1>
+
+        <p class="text-base-content/70 mb-6">
+          {dgettext("auth", "Click the button below to finish signing in.")}
+        </p>
+
+        <.form for={%{}} action={~p"/magic_link/#{@token}"} method="post">
+          <button type="submit" class="btn btn-primary btn-block">
+            {dgettext("auth", "Sign in")}
+          </button>
+        </.form>
+      </div>
+    </div>
+  </Layout.auth>
+  """
+end
