@@ -1,5 +1,105 @@
 # Changelog
 
+## v0.5.0
+
+### Added
+
+- Reconciled the unpublished local Page, Component and Router work into an
+  optional stable Phoenix surface. Existing controller/core APIs remain supported.
+- `StarView.Page` colocates mount, render, event and stream callbacks;
+  `StarView.Component` colocates shared UI with marked event handlers.
+- Page streams use the existing `StarView.Stream` lifecycle and coordinator;
+  there is no separate receive loop or process framework. Optional
+  `handle_disconnect/1` runs once after exact claim release on normal ends,
+  takeover and raised callbacks, using the latest completed callback conn.
+- New router macros default to POST-only events. Extra unsafe methods are
+  explicit; page GET is opt-in and component GET is restricted to an explicit
+  marked-module allowlist via additive `Dispatch` `:only` options.
+- Page/component helpers reuse safe JSON/segment encoding. Browser pathname and
+  component dispatch bases are validated as local paths before any request.
+- Added `StarView.Test` assertions for emitted Plug/Phoenix SSE, including
+  multiline JSON, nested expected keys and explicit null patches.
+- Added a removable `mix star_view.setup.stream_page` PubSub demo with supervised
+  ticker, routing and CSRF wiring, plus disconnect unsubscribe.
+- Added the page/component guide and packaged usage rules. The published 0.4.0
+  transport/security/installer fixes and dependency lock remain in place.
+- Fixed optional installer task compilation in Plug-only consumers without
+  Igniter; optional dependencies remain optional.
+
+The new page/component/routing design adapts dstar's MIT work. The original
+unpublished checkout remains separate; stale version and registry implementations
+were not carried into the release.
+
+## v0.4.0
+
+### Compatibility and security changes
+
+- Action expressions now use JSON double-quoted URL strings. Code that parses
+  action text must support both quote styles instead of matching a single quote;
+  prefer keeping module/event data rather than parsing expressions. Hand-built
+  HTML must escape the action value with `Phoenix.HTML` instead of interpolating
+  it into a double-quoted attribute. HEEx handles attribute escaping automatically.
+- Custom `module: "$signal"` expressions are no longer accepted: `$`-prefixed
+  overrides raise `ArgumentError` instead of being treated as executable
+  JavaScript. The default `"$_star_view_module"` signal remains supported;
+  other overrides are literal module names. Safe relative prefixes still
+  normalize to local absolute paths.
+- The optional Igniter integration now requires the tested `~> 0.8.4` API.
+- Script attribute names must be plain names; pass values using map/tuple
+  attributes instead of bare `type="module"` fragments.
+- `StreamRegistry` is now a GenServer coordinator rather than Elixir's
+  `Registry`. Use its public ownership API; direct `Registry.lookup/2` calls
+  and `Registry` child options are incompatible.
+- `start_stream/2` returns a halted HTTP 400/413 for invalid/oversized signals
+  rather than opening an unkeyed stream. Raw/query signal input defaults to
+  1,000,000 bytes, lower than the previous raw-body reader's 8 MB limit. Empty
+  `datastar=` values and parsed non-object JSON wrappers now return HTTP 400.
+- Legacy manual streams still receive `:replaced` exits and must trap exits to
+  clean up. Owners that retain a retired claim past `:grace_ms` are killed;
+  release the exact claim before returning to an HTTP/1 keep-alive request.
+  The new `StarView.Stream` lifecycle uses tagged ordinary takeover messages.
+
+### Added
+
+- Added `StarView.Signals.fetch/2` and `StarView.fetch_signals/2` to return the
+  consumed Plug conn with object-only signals and configurable raw/query limits.
+- Added opt-in `StarView.Stream.open/2` and `run/2` for a shared SSE lifecycle:
+  fixed-deadline liveness probes, adapter mailbox handling, exact-generation
+  takeover, explicit claim release, and one normal disconnect callback.
+- Added `StreamRegistry.release/1`, `unregister_stream/1`, `unregister_self/0`,
+  and `owner/1` for explicit ownership cleanup and inspection.
+
+### Fixed
+
+- Action helpers percent-encode literal event/module values as route segments,
+  serialize JavaScript strings, validate local prefixes, and encode dynamic
+  modules. `module:` overrides are literal values; empty and dot segments raise.
+- Stream claims are linearizable. Replacement handover no longer blocks on a
+  keep-alive process dying, and released generations cannot be escalated later.
+  Refused keyed claims return plain HTTP 503 before SSE starts.
+- Both dispatchers thread the fetched conn and reject malformed/non-object
+  signals with HTTP 400, oversized signals with 413 before invoking handlers.
+- Closed SSE writes use `StarView.SSE.TransportError` and halt dispatch normally;
+  `:econnreset` and `:epipe` also end normally through the shared disconnect
+  predicate. Other transport failures and application exceptions still propagate.
+- Formatting failures retain their original exception type rather than becoming
+  transport errors. SSE values cannot inject CR/LF event fields or frames, and
+  CR-only HTML/JSON patches retain the Datastar field prefix on every line.
+- Script closing-tag escaping preserves message case and validates attribute
+  names so attribute strings cannot break out of the generated tag.
+- CSRF renaming reads DELETE's Datastar query signals, preserves existing body
+  tokens, and prevents query `_csrf_token` from suppressing a valid signal token.
+  Unfetched raw bodies remain readable when query tokens are copied to the CSRF
+  header, and explicit existing CSRF headers retain precedence.
+- Component patches supply HEEx change tracking without changing conn assigns.
+- Installer updates replace whole function definitions and keep generated auth
+  functions/attributes at module level.
+- Dispatch and CSRF setup run independently of sample generation, so
+  `mix star_view.install --no-example` still configures Phoenix events.
+- Updated the dependency lock to current compatible releases.
+
+URL, stream ownership, and CSRF improvements adapt concepts from dstar (MIT).
+
 ## v0.3.18
 
 ### Added

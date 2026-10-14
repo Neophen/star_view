@@ -2,165 +2,104 @@
   <img src="https://raw.githubusercontent.com/Neophen/star_view/main/assets/logo.png" alt="StarView logo" width="128" />
 </p>
 
-# StarView - Unofficial helpers for Datastar and Phoenix
-
-### THIS IS IN ALPHA STAGES EVERYTHING CHANGES DAILY DO NOT USE
+# StarView — Datastar SSE for Plug and Phoenix
 
 <p align="center">
-  <a href="https://hexdocs.pm/star_view">
-    <img src="https://img.shields.io/github/v/release/Neophen/star_view?color=lawn-green" alt="Version" />
-  </a>
-  <a href="https://hex.pm/packages/star_view">
-    <img src="https://img.shields.io/hexpm/dw/star_view?style=flat&label=downloads&color=blue" alt="Downloads" />
-  </a>
+  <a href="https://hexdocs.pm/star_view"><img src="https://img.shields.io/github/v/release/Neophen/star_view?color=lawn-green" alt="Version" /></a>
+  <a href="https://hex.pm/packages/star_view"><img src="https://img.shields.io/hexpm/dw/star_view?style=flat&label=downloads&color=blue" alt="Downloads" /></a>
   <img src="https://img.shields.io/badge/Erlang/OTP-27+-blue" alt="Requires Erlang/OTP 27+" />
-  <a href="https://github.com/Neophen/star_view/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/Neophen/star_view" alt="License" />
-  </a>
+  <a href="https://github.com/Neophen/star_view/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Neophen/star_view" alt="MIT license" /></a>
 </p>
 
-StarView is an Elixir SDK for [Datastar](https://data-star.dev) Server-Sent Events.
-It works with Plug and Phoenix, and uses Erlang's built-in `:json` module.
+StarView sends [Datastar](https://data-star.dev) Server-Sent Events from ordinary
+Plug requests. Phoenix helpers let you update browser signals and patch HEEx
+function components while threading the current connection.
 
-## The Problem
+It requires Elixir 1.17+ and Erlang/OTP 27+; JSON uses OTP's built-in `:json`.
+Phoenix and its component support are optional integrations. StarView owns the
+server protocol; your application owns its Datastar client, authentication,
+authorization, and durable business actions.
 
-Building Datastar apps in Elixir means a lot of boilerplate. You manually start
-SSE connections, track which values to send to the browser, and remember to
-flush them at the end. It's easy to forget a step.
+## What it solves
 
-StarView removes that.
+| Repeated work | StarView's API |
+| --- | --- |
+| Keep a render assign and browser signal in sync | `signal/3` assigns and patches together |
+| Render one changed region after an event | `patch_element/3` accepts a HEEx function component |
+| Read raw signal JSON without losing the updated conn | `Signals.fetch/2` returns the conn on success and error |
+| Construct dispatch URLs with quotes, slashes, or Unicode | `Actions` encodes segments and JavaScript string values |
+| End PubSub streams without leaking ownership across keep-alive requests | `StarView.Stream.open/2` and `StarView.Stream.run/2` own probes and exact claim release |
 
-## What Makes It Different
+For one-module page callbacks or shared UI with event handlers, v0.5.0 adds the
+optional `StarView.Page`, `StarView.Component` and `StarView.Router` surface.
+Follow [pages, streams and components](guides/phoenix/pages.md). Existing
+controller entrypoints remain supported.
 
-**`signal/3` does two things at once.**
-
-It sets a connection assign (so your function components can read it) **and**
-patches it to the browser automatically during Datastar requests.
+A short Phoenix event looks like this:
 
 ```elixir
-def handle_event("increment", signals, conn) do
+def handle_event("increment", %{"count" => count}, %{method: "POST"} = conn)
+    when is_integer(count) and count >= 0 and count < 1_000_000 do
   conn
-  # Server-only: function components can read @computed_value, browser never sees it
-  |> assign(:computed_value, expensive_calculation(signals))
-  # Both: function components can read @count, browser gets it too
-  |> signal(:count, signals["count"] + 1)
-  # Render a function component and patch it into the DOM
-  |> patch_element(&history_item/1, to: "history-list", mode: :append)
-  # If the function component has an id you can simplify this code to just
-  |> patch_element(&history_item/1)
+  |> Plug.Conn.assign(:label, "Count")
+  |> signal(:count, count + 1)
+  |> patch_element(&summary/1)
 end
+
+def handle_event(_event, _signals, conn), do: conn
 ```
 
-**No manual start or signal patching.**
+Dispatch validates signal input and starts SSE before calling that handler.
+`signal/3` sends its update immediately; there is no final flush step. The
+submitted count is browser UI state in this example. A saved counter should be
+updated by an authorized application action using trusted actor/tenant context.
 
-The dispatch plug starts the SSE response before your handler runs. `signal/3`
-then assigns the value and sends the Datastar signal patch immediately.
-
-**Auto-registration.**
-
-Any controller that `use StarView` is automatically dispatchable.
-No allow-list in your router to maintain.
+Follow the [complete counter example](guides/examples/phoenix_counter.md) for the
+page mount, layout, component, validation, and error state.
 
 ## Installation
 
-### Quick (Igniter)
+For a Phoenix project with Igniter:
 
-```bash
+```sh
 mix igniter.install star_view
 ```
 
-This sets up the StarView Phoenix development flow out of the box:
+The installer adds the dependency, dedicated `:star_view` web entrypoint,
+layout, POST dispatch route and CSRF renaming plug, sample search page/controller, optional stream registry,
+and HTTPS development setup. To skip optional parts:
 
-- Adds the dependency.
-- Adds `StarView.StreamRegistry` to your supervision tree.
-- Adds a dedicated `star_view` section to your web module after `controller`.
-- Generates `YourAppWeb.Components.StarView.Layout` for the StarView document
-  layout and page wrapper.
-- Configures HTTPS and `https://<hyphenated-otp-app>.test:4001` as the dev URL.
-- Provides `mix star_view.trust` to add the local host entry and generate a
-  browser-trusted HTTPS certificate with `mkcert`.
-- Patches your router with `/search` and `/ds/:module/:event` routes.
-- Generates a sample search controller.
-- Provides `mix dev`, which delegates to `mix star_view.server`.
-
-Install `mkcert` first:
-
-```bash
-brew install mkcert nss
-```
-
-Then run the trust step directly after installation:
-
-```bash
-mix star_view.trust
-```
-
-It adds the `.test` host to `/etc/hosts`, runs `mkcert -install`, and writes
-`priv/cert/selfsigned.pem` plus `priv/cert/selfsigned_key.pem`. It may prompt
-for sudo privileges. Run it before `mix dev` so Phoenix can find the configured
-certificate files.
-
-Skip parts you don't want:
-
-```bash
+```sh
 mix igniter.install star_view --no-stream-dedup --no-https --no-example
 ```
 
-Start Phoenix and open the configured dev URL:
+`--no-example` skips the sample search page/controller. It retains the default
+POST dispatch route and CSRF plug. For an existing manual integration,
+`mix star_view.setup.dispatch` adds that routing/plug setup independently.
 
-```bash
-mix dev
-```
+When using the generated HTTPS development configuration, install `mkcert`
+and run `mix star_view.trust` before `mix dev`. The trust step writes local
+certificate files and may require permission to update the host entry. See
+[installation](guides/introduction/installation.md) and
+[development server](guides/phoenix/development_server.md) for the full setup.
 
-### Manual
+For manual installation:
 
 ```elixir
 def deps do
-  [
-    {:star_view, "~> 0.3.18"}
-  ]
+  [{:star_view, "~> 0.5.0"}]
 end
 ```
 
-Add `StarView.StreamRegistry` to your supervision tree if you want
-per-tab stream deduplication.
-
-Add a `star_view` section to your web module. Place it after the existing
-`controller` section so controller-style helpers stay grouped together:
-
-```elixir
-def star_view do
-  quote do
-    use Phoenix.Controller, formats: [:html, :json]
-    use StarView
-    use Phoenix.Component
-
-    use Gettext, backend: MyAppWeb.Gettext
-
-    import Phoenix.Component, except: [assign: 3]
-    import Plug.Conn
-
-    alias MyAppWeb.Components.StarView.Layout
-
-    plug :put_root_layout, false
-
-    unquote(verified_routes())
-  end
-end
-```
-
-Create `MyAppWeb.Components.StarView.Layout` for the document layout and
-`Layout.app/1` wrapper. The Igniter installer generates this from
-`priv/templates/layout.eex`.
-
-Add the dispatch route to your router:
+For Phoenix, add the [dedicated web entrypoint](guides/phoenix/web_module.md)
+and [layout](guides/phoenix/layout.md), then route the dispatcher through your
+browser pipeline:
 
 ```elixir
 pipeline :browser do
-  # ...
+  # Existing session/authentication plugs run before dispatch.
   plug StarView.Plug.RenameCsrfParam
   plug :protect_from_forgery
-  # ...
 end
 
 scope "/", MyAppWeb do
@@ -169,137 +108,107 @@ scope "/", MyAppWeb do
 end
 ```
 
-`alias: false` keeps Phoenix from resolving the dispatch plug as
-`MyAppWeb.StarView.Dispatch` inside the scoped router block.
-`StarView.Plug.RenameCsrfParam` must run before `:protect_from_forgery` so
-Datastar's `csrf` signal is available as Phoenix's `_csrf_token` parameter.
+An existing Phoenix browser pipeline also needs its normal plugs and the
+endpoint's JSON parser. The fragment above shows the CSRF ordering, not a
+replacement for the complete pipeline. Cookie-authenticated mutations need
+CSRF protection, and each event still needs application authorization.
+The default route handles POST. If using GET, DELETE, PUT, or PATCH helpers,
+register those verbs explicitly and check the method in shared event handlers;
+see [action routing](guides/core/actions.md). GET must remain read-only.
 
-## Phoenix Setup
+## Bundle the browser client
 
-Write a controller with the `:star_view` web-module section:
+Import your chosen Datastar ES module from the application's asset entrypoint,
+for example:
 
-```elixir
-defmodule MyAppWeb.CounterController do
-  use MyAppWeb, :star_view
-
-  # Called on page load. Set up initial signals here.
-  @impl StarView
-  def mount(conn, _params) do
-    conn
-    |> signal(:count, 0)
-  end
-
-  # Render the initial HTML. Layout.app sends starting signal values to the browser.
-  @impl StarView
-  def render(assigns) do
-    ~H"""
-    <Layout.app conn={@conn}>
-      <button data-on:click={post("increment")}>+</button>
-      <span data-text="$count">{@count}</span>
-    </Layout.app>
-    """
-  end
-
-  # Called when the user clicks the button. Return the updated conn.
-  @impl StarView
-  def handle_event("increment", signals, conn) do
-    signal(conn, :count, Map.get(signals, "count", 0) + 1)
-  end
-end
+```javascript
+// assets/js/app.js (or the application's public entrypoint)
+import "../vendor/datastar.js"
 ```
 
-That's it. The dispatcher handles SSE start, calls your handler, and `signal/3`
-sends browser-visible values as your pipeline runs.
+The path is an application-owned, locally acquired module. Preserve its license
+notice, follow its version/API requirements, and load the client once. The
+installer's layout includes a free CDN client by default; remove that script
+when bundling locally. StarView does not ship or grant a license for Datastar Pro.
 
-## `assign` vs `signal`
+Keep simple controls as server-rendered HTML with ordinary Datastar signals.
+Consider [Rocket](https://data-star.dev/reference/rocket) for reusable controls
+that need their own browser state and lifecycle; its API is currently beta.
+Rocket provides browser state and lifecycle. `StarView.Component` colocates
+Phoenix function components with server event handlers; it creates no server
+process or persistent component state.
 
-| Function | Function components see it | Browser sees it |
-|---|---|---|
-| `assign(conn, :key, value)` | Yes | No |
-| `signal(conn, :key, value)` | Yes | Yes (initially or immediately during SSE) |
+## Choose your server integration
 
-Use `assign` for server-only data you pass to components. Use `signal` for
-anything the browser needs to react to.
+| Integration | Handler contract | Streaming starts |
+| --- | --- | --- |
+| Phoenix marker dispatcher | `handle_event(event, signals, conn)` on a marked controller/component | Before the callback |
+| Optional page routes | `StarView.Page` mount/render/event callbacks; optional connect/info/disconnect | Before event/connect callbacks |
+| Allowlisted `StarView.Plug.Dispatch` | `handle_event(conn, event, signals)` in a `modules:` entry | Before the callback unless `start: false` |
+| Manual Plug endpoint | Fetch/validate with your own Plug | When you call `StarView.start/1` |
+| Long-running subscription | `StarView.Stream.open/2`, then `StarView.Stream.run/2` callbacks | On successful `open/2` |
 
-## Patching Function Components
+A dispatchable marker selects a handler; it does not authorize its operations.
+The [manual endpoint guide](guides/examples/plug_endpoints.md) explains input
+limits, callback orders, auth gates, and why HTTP rejection must happen before
+SSE. Once streaming starts, patch the existing error state instead of calling
+`put_status`, setting cookies, or sending another HTTP response.
 
-`patch_element/3` renders a function component against current assigns and sends
-the HTML to the browser:
+## Assigns, signals, and HTML
 
-```elixir
-def handle_event("add_item", _signals, conn) do
-  conn
-  |> assign(:items, ["Ada", "Grace"])
-  |> patch_element(&list/1, to: "people", mode: :replace)
-end
-```
+| Operation | Server component sees the value | Browser sees the value |
+| --- | --- | --- |
+| `Plug.Conn.assign(conn, :key, value)` | Yes | Only if rendered as HTML |
+| `StarView.Controller.signal(conn, :key, value)` | Yes | JSON signal, initially or during SSE |
+| `StarView.patch_signals(conn, map)` | No assign update | JSON signal patch |
 
-Pass a function of arity 1 and it receives the assigns map. Pass raw HTML and
-it sends that directly.
+Component code uses `Phoenix.Component.assign/3` for its assigns map. In
+v0.4.0, `patch_element/3` supplies missing render metadata for plain Plug
+assigns, so the same function component can derive values during initial
+rendering and during an event patch. Each event is a new request; load/set every
+assign its component requires. See [component patches](guides/core/patch_element.md).
 
-## Per-Tab Stream Deduplication
+## Worked examples and diagnostics
 
-When a user navigates away, the old SSE process can stick around until the next
-keepalive. That wastes connections. StarView can kill the old stream when a new
-one starts from the same tab.
+- [Phoenix counter](guides/examples/phoenix_counter.md): complete action, HEEx component, validation, and partial DOM update.
+- [Actions and quoted values](guides/core/actions.md): explicit targets, module signal contract, encoded paths, and double-quote migration.
+- [Manual Plug endpoints](guides/examples/plug_endpoints.md): thread fetched conns and reject bad input before streaming.
+- [PubSub streams](guides/examples/pubsub_stream.md): authentication, subscription cleanup, exact ownership, and fixed-deadline probes.
+- [Troubleshooting](guides/reference/troubleshooting.md): malformed params, silent client mistakes, CSRF, stream 503s, and transport errors.
 
-Add this to your supervision tree:
+The optional [AshAuthentication magic-link generator](guides/phoenix/auth.md),
+`mix star_view.setup.auth`, was included in v0.3.18 and remains available in
+v0.4.0. It renders StarView sign-in pages and exchanges the token through a
+normal form POST so session cookies are set before redirecting. It requires
+the application's AshAuthentication resource/strategy and domain interfaces.
 
-```elixir
-children = [
-  StarView.StreamRegistry,
-  # ...
-]
-```
+## API and compatibility
 
-Set a `tabId` signal in your layout:
+Start with the [API overview](guides/reference/api_overview.md) or
+[HexDocs](https://hexdocs.pm/star_view). Raw/query signal input defaults to a
+1,000,000-byte limit and must be an object. Bound already-parsed input with
+`Plug.Parsers` too. Prefer `StarView.fetch_signals/2` when raw bodies are involved.
 
-```heex
-<div data-signals={~s({"tabId": "#{Ecto.UUID.generate()}"})}>
-```
+Action strings in v0.4.0 use JSON double quotes. Avoid reverse-parsing them
+with a single-quote-only string matcher. Use HEEx expression attributes or
+HTML-escape the whole expression when constructing raw HTML. Expected closed/reset/broken-pipe SSE
+writes end normally through typed transport errors; timeouts and application
+exceptions remain errors. Read the [changelog](CHANGELOG.md) when upgrading
+this pre-1.0 package, especially from [Dstar](guides/reference/migration_from_dstar.md).
 
-Start streams with:
+## License
 
-```elixir
-conn = StarView.start_stream(conn, current_user.id)
-```
+StarView is MIT licensed. The action-safety and stream-lifecycle implementations
+include work adapted from [dstar](https://github.com/ricotrevisan/dstar),
+Copyright (c) 2025 Rico Trevisan. Attribution is retained in source and [LICENSE](LICENSE).
+Datastar and any licensed client bundle retain their own terms.
 
-If no `tabId` is present, it falls back to a regular stream with no deduplication.
+## Test emitted updates
 
-## CSRF (Forms)
+`StarView.Test` adds `sse_events/1`, `patched_signals/1`,
+`assert_patched_signals/2` and `assert_patched_element/2` for Plug/Phoenix tests.
+These inspect emitted updates; they do not replay the browser's initial state.
 
-You usually don't need forms with Datastar. If you do, put the CSRF token in a
-`csrf` signal and add this plug before your CSRF protection:
-
-```elixir
-plug StarView.Plug.RenameCsrfParam
-plug :protect_from_forgery
-```
-
-## Migration from Dstar
-
-| Dstar | StarView |
-|---|---|
-| `Dstar` | `StarView` |
-| `Dstar.Utility.StreamRegistry` | `StarView.StreamRegistry` |
-| `$_dstar_module` | `$_star_view_module` |
-| `Dstar.read_signals/1` | `StarView.read_signals/1` |
-| Manual `Dstar.start/1` | Handled by dispatch plug |
-| Manual signal patching | Handled by `signal/3` |
-
-## Full API
-
-```elixir
-StarView.start(conn)
-StarView.start_stream(conn, user_id)
-StarView.check_connection(conn)
-StarView.patch_elements(conn, html, selector: "#target", mode: :replace)
-StarView.remove_elements(conn, "#target")
-StarView.patch_signals(conn, %{count: 1})
-StarView.patch_signals_raw(conn, ~s({"count":1}))
-StarView.remove_signals(conn, ["user.email"])
-StarView.execute_script(conn, "console.log('done')")
-StarView.redirect(conn, "/next")
-StarView.console_log(conn, "debug")
-StarView.read_signals(conn)
-```
+`mix star_view.setup.stream_page` creates a removable PubSub demo page and ticker
+with the page/component API and cleanup wiring. See
+[pages and streams](guides/phoenix/pages.md).

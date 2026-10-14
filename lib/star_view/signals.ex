@@ -8,50 +8,117 @@ defmodule StarView.Signals do
   alias StarView.JSON
   alias StarView.SSE
 
-  defmodule ReadError do
-    @moduledoc """
-    Raised when Datastar signals cannot be decoded from the request body.
-    """
-    defexception [:reason]
-
-    @impl Exception
-    def message(%__MODULE__{reason: reason}),
-      do: "failed to read Datastar signals: #{inspect(reason)}"
-  end
-
   @event_type Constants.event_type(:patch_signals)
   @datastar_key Constants.datastar_key()
   @default_only_if_missing Constants.default_patch_signals_only_if_missing()
+  @default_max_bytes 1_000_000
+
+  @doc """
+  Fetches an object signal document and returns Plug's updated connection.
+
+  Raw bodies and the `datastar` query JSON are limited to 1,000,000 bytes by
+  default, configurable with `:max_bytes`. Already-parsed body params rely on
+  `Plug.Parsers`'s configured length limit. Always thread the returned conn.
+  """
+  @spec fetch(Conn.t(), keyword()) :: {:ok, map(), Conn.t()} | {:error, term(), Conn.t()}
+  def fetch(conn, opts \\ []) do
+    max_bytes = max_bytes!(opts)
+    fetch_signals(conn, max_bytes)
+  end
+
+  defp fetch_signals(%Conn{method: method} = conn, max_bytes) when method in ["GET", "DELETE"] do
+    conn = Conn.fetch_query_params(conn)
+    result = decode_query(Map.get(conn.query_params, @datastar_key), max_bytes)
+    fetch_query_result(result, conn)
+  end
+
+  defp fetch_signals(%Conn{body_params: %Conn.Unfetched{}} = conn, max_bytes) do
+    case Conn.read_body(conn, length: max_bytes, read_length: max_bytes) do
+      {:ok, "", conn} -> {:ok, %{}, put_signals(conn, %{})}
+      {:ok, body, conn} -> fetch_body_result(body, conn, max_bytes)
+      {:more, _partial, conn} -> {:error, :body_too_large, conn}
+      {:error, reason} -> {:error, reason, conn}
+    end
+  end
+
+  defp fetch_signals(%Conn{body_params: %{"_json" => value} = params} = conn, _max_bytes)
+       when map_size(params) == 1 do
+    # Plug.Parsers wraps non-object JSON in this reserved key. Datastar
+    # excludes underscore-prefixed signals from submitted documents.
+    {:error, {:invalid_signals, value}, conn}
+  end
+
+  defp fetch_signals(%Conn{body_params: params} = conn, _max_bytes) when is_map(params),
+    do: {:ok, params, conn}
+
+  defp fetch_signals(conn, _max_bytes), do: {:error, :invalid_signals, conn}
+
+  defp fetch_query_result({:ok, signals}, conn), do: {:ok, signals, conn}
+  defp fetch_query_result({:error, reason}, conn), do: {:error, reason, conn}
+
+  defp fetch_body_result(body, conn, max_bytes) do
+    body |> decode_bounded(max_bytes) |> fetch_result(conn)
+  end
+
+  defp fetch_result({:ok, signals}, conn), do: {:ok, signals, put_signals(conn, signals)}
+  defp fetch_result({:error, reason}, conn), do: {:error, reason, conn}
+
+  defp put_signals(conn, signals) do
+    params = fetched_params(conn.params)
+    params = params |> Map.merge(signals) |> Map.merge(fetched_params(conn.path_params))
+    %{conn | body_params: signals, params: params}
+  end
+
+  defp fetched_params(%Conn.Unfetched{}), do: %{}
+  defp fetched_params(params) when is_map(params), do: params
+  defp fetched_params(_params), do: %{}
+
+  defp decode_query(nil, _max_bytes), do: {:ok, %{}}
+  defp decode_query("", _max_bytes), do: {:error, :invalid_signals}
+  defp decode_query(json, max_bytes) when is_binary(json), do: decode_bounded(json, max_bytes)
+  defp decode_query(_json, _max_bytes), do: {:error, :invalid_signals}
+
+  defp decode_bounded(json, max_bytes) when byte_size(json) > max_bytes,
+    do: {:error, :body_too_large}
+
+  defp decode_bounded(json, _max_bytes), do: decode_map(json)
+
+  defp max_bytes!(opts) do
+    case Keyword.get(opts, :max_bytes, @default_max_bytes) do
+      value when is_integer(value) and value > 0 -> value
+      _ -> raise ArgumentError, ":max_bytes must be a positive integer"
+    end
+  end
+
+  @doc "Sends a plain HTTP 400 or 413 response for a signal input error before SSE starts."
+  @spec send_error(Conn.t(), term()) :: Conn.t()
+  def send_error(conn, reason) do
+    {status, message} = input_error(reason)
+
+    conn
+    |> Conn.put_resp_content_type("text/plain")
+    |> Conn.send_resp(status, message)
+    |> Conn.halt()
+  end
+
+  defp input_error(:body_too_large), do: {413, "Signal payload too large"}
+  defp input_error(_reason), do: {400, "Invalid signal payload"}
 
   @doc """
   Reads Datastar signals from a Plug connection.
 
   `GET` and `DELETE` requests read the `datastar` query parameter. Other
   methods read JSON from the request body unless a parser has already populated
-  `conn.body_params`.
+  `conn.body_params`. For raw bodies, prefer `fetch/2` so the updated conn
+  reaches subsequent plugs; this compatibility API returns only the result.
   """
   @spec read(Conn.t()) :: {:ok, map()} | {:error, term()}
-  def read(%Conn{method: method} = conn) when method in ["GET", "DELETE"] do
-    conn = Conn.fetch_query_params(conn)
-
-    case Map.get(conn.query_params, @datastar_key) do
-      nil -> {:ok, %{}}
-      "" -> {:ok, %{}}
-      json -> decode_map(json)
+  def read(%Conn{} = conn) do
+    case fetch(conn) do
+      {:ok, signals, _conn} -> {:ok, signals}
+      {:error, reason, _conn} -> {:error, reason}
     end
   end
-
-  def read(%Conn{body_params: %Conn.Unfetched{}} = conn) do
-    case Conn.read_body(conn) do
-      {:ok, "", _conn} -> {:ok, %{}}
-      {:ok, body, _conn} -> decode_map(body)
-      {:more, _partial, _conn} -> {:error, :body_too_large}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  def read(%Conn{body_params: body_params}) when is_map(body_params), do: {:ok, body_params}
-  def read(%Conn{}), do: {:ok, %{}}
 
   @doc """
   Reads Datastar signals and raises on errors.
@@ -60,7 +127,7 @@ defmodule StarView.Signals do
   def read!(%Conn{} = conn) do
     case read(conn) do
       {:ok, signals} -> signals
-      {:error, reason} -> raise ReadError, reason: reason
+      {:error, reason} -> raise StarView.Signals.ReadError, reason: reason
     end
   end
 
@@ -138,7 +205,7 @@ defmodule StarView.Signals do
   defp add_signals(lines, signals_json) do
     lines ++
       (signals_json
-       |> String.split("\n")
+       |> String.split(["\r\n", "\r", "\n"])
        |> Enum.map(&(Constants.dataline_literal(:signals) <> &1)))
   end
 

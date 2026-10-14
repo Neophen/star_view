@@ -100,7 +100,7 @@ defmodule StarView.Elements do
   defp add_elements(lines, elements) do
     lines ++
       (elements
-       |> String.split("\n")
+       |> String.split(["\r\n", "\r", "\n"])
        |> Enum.map(&(Constants.dataline_literal(:elements) <> &1)))
   end
 

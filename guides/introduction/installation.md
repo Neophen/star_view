@@ -18,7 +18,8 @@ The installer sets up the recommended Phoenix development flow:
 - Configures HTTPS and `https://<hyphenated-otp-app>.test:4001` as the dev URL.
 - Provides `mix star_view.trust` to add the local host entry and generate a
   browser-trusted HTTPS certificate with `mkcert`.
-- Patches your router with `/search` and `/ds/:module/:event` routes.
+- Adds the POST `/ds/:module/:event` route and `RenameCsrfParam` before CSRF protection.
+- Adds the optional `/search` sample page route.
 - Generates a sample search controller.
 - Provides `mix dev`, which delegates to `mix star_view.server`.
 
@@ -49,14 +50,24 @@ mix igniter.install star_view --no-stream-dedup --no-https --no-example
 | --- | --- |
 | `--no-stream-dedup` | Skips adding `StarView.StreamRegistry` to your supervision tree. |
 | `--no-https` | Skips StarView dev URL and HTTPS configuration. |
-| `--no-example` | Skips generating the sample controller/handler. |
+| `--no-example` | Skips the sample search controller and `/search` route; retains the POST dispatch route and CSRF plug. |
+
+The routing/CSRF setup is also available independently:
+
+```bash
+mix star_view.setup.dispatch
+```
+
+This task registers POST, not every action verb. Add matching GET/DELETE/PUT/PATCH
+routes only when used, as shown in [action routing](../core/actions.md). Handlers
+must enforce their allowed methods; GET remains read-only.
 
 ## Manual Dependency
 
 ```elixir
 def deps do
   [
-    {:star_view, "~> 0.3.18"}
+    {:star_view, "~> 0.5.0"}
   ]
 end
 ```

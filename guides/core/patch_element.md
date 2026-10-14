@@ -33,12 +33,17 @@ attr :item, :string, required: true
 
 def item(assigns) do
   ~H"""
-  <li class="border p-4" data-show={starts_with?("'#{@item}'")}>
+  <li class="border p-4" data-show={starts_with?(StarView.JSON.encode!(@item))}>
     {@item}
   </li>
   """
 end
 ```
+
+`JSON.encode!/1` makes the item a JavaScript string value. HEEx separately
+escapes the HTML attribute. This matters when an item contains quotes or came
+from submitted input; interpolating it into a hand-built quoted expression can
+turn data into expression syntax.
 
 When the component is rendered from the initial page, attributes come from the
 parent template:

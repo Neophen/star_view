@@ -13,7 +13,7 @@ defmodule Mix.Tasks.StarView.InstallTest do
 
   test "configures Phoenix endpoint URL and StarView dev URL" do
     igniter =
-      phx_test_project(app_name: :octafest)
+      phoenix_project(app_name: :octafest)
       |> Igniter.compose_task("star_view.install", ["--no-stream-dedup", "--no-example"])
 
     content = file_content(igniter, "config/dev.exs")
@@ -56,7 +56,7 @@ defmodule Mix.Tasks.StarView.InstallTest do
 
   test "hyphenates generated development hostnames" do
     igniter =
-      phx_test_project(app_name: :star_view_demo)
+      phoenix_project(app_name: :star_view_demo)
       |> Igniter.compose_task("star_view.install", ["--no-stream-dedup", "--no-example"])
 
     content = file_content(igniter, "config/dev.exs")
@@ -81,7 +81,7 @@ defmodule Mix.Tasks.StarView.InstallTest do
 
   test "generates the Phoenix search controller example" do
     igniter =
-      phx_test_project(app_name: :octafest)
+      phoenix_project(app_name: :octafest)
       |> Igniter.compose_task("star_view.install", ["--no-stream-dedup"])
 
     content = file_content(igniter, "lib/octafest_web/controllers/search_controller.ex")
@@ -99,7 +99,7 @@ defmodule Mix.Tasks.StarView.InstallTest do
     assert web_module =~ "use Gettext, backend: OctafestWeb.Gettext"
     assert web_module =~ "import Phoenix.Component, except: [assign: 3]"
     assert web_module =~ "alias OctafestWeb.Components.StarView.Layout"
-    assert web_module =~ "plug(:put_root_layout, false)"
+    assert web_module =~ ~r/plug[( ]:put_root_layout, false\)?/
     assert web_module =~ "unquote(verified_routes())"
     assert_top_level_function_order(web_module, [:controller, :star_view, :live_view])
     refute_function_contains_def(web_module, :controller, :star_view)
@@ -117,12 +117,70 @@ defmodule Mix.Tasks.StarView.InstallTest do
     assert content =~ "</Layout.app>"
 
     router = file_content(igniter, "lib/octafest_web/router.ex")
-    assert_before(router, "plug(StarView.Plug.RenameCsrfParam)", "plug(:protect_from_forgery)")
-    assert router =~ ~s|get("/search", SearchController, :mount)|
-    assert router =~ ~s|post("/ds/:module/:event", StarView.Dispatch, [], alias: false)|
+    assert_before(router, "plug StarView.Plug.RenameCsrfParam", "plug(:protect_from_forgery)")
+    assert router =~ ~s|get "/search", SearchController, :mount|
+    assert router =~ ~s|post "/ds/:module/:event", StarView.Dispatch, [], alias: false|
     refute router =~ "Elixir.StarView.Dispatch"
     refute router =~ "OctafestWeb.OctafestWeb.SearchController"
     refute router =~ "OctafestWeb.StarView.Dispatch"
+  end
+
+  test "no-example still configures dispatch and CSRF without a sample controller" do
+    igniter =
+      phoenix_project(app_name: :octafest)
+      |> Igniter.compose_task("star_view.install", [
+        "--no-stream-dedup",
+        "--no-https",
+        "--no-example"
+      ])
+
+    router = file_content(igniter, "lib/octafest_web/router.ex")
+    assert router =~ ~s|post "/ds/:module/:event", StarView.Dispatch, [], alias: false|
+    assert_before(router, "plug StarView.Plug.RenameCsrfParam", "plug(:protect_from_forgery)")
+    refute router =~ ~s|"/search"|
+
+    refute Map.has_key?(
+             igniter.rewrite.sources,
+             "lib/octafest_web/controllers/search_controller.ex"
+           )
+
+    assert igniter.issues == []
+    assert Enum.any?(igniter.notices, &String.contains?(&1, "POST dispatch routing"))
+  end
+
+  test "dispatch setup can run independently and leaves existing routes intact on rerun" do
+    igniter =
+      phoenix_project(app_name: :octafest)
+      |> Igniter.compose_task("star_view.setup.dispatch")
+      |> Igniter.compose_task("star_view.setup.search_controller")
+
+    router = file_content(igniter, "lib/octafest_web/router.ex")
+    assert length(Regex.scan(~r{/ds/:module/:event}, router)) == 1
+    assert length(Regex.scan(~r{StarView.Plug.RenameCsrfParam}, router)) == 1
+    assert length(Regex.scan(~r{get "/search"}, router)) == 1
+    assert igniter.issues == []
+  end
+
+  test "an existing GET dispatch route or comment does not suppress POST setup" do
+    igniter =
+      phoenix_project(app_name: :octafest)
+      |> Igniter.Libs.Phoenix.append_to_scope(
+        "/",
+        """
+        # post "/ds/:module/:event", StarView.Dispatch, [], alias: false
+        get "/ds/:module/:event", StarView.Dispatch, [], alias: false
+        """,
+        with_pipelines: [:browser],
+        arg2: OctafestWeb,
+        router: OctafestWeb.Router
+      )
+      |> Igniter.compose_task("star_view.setup.dispatch")
+
+    router = file_content(igniter, "lib/octafest_web/router.ex")
+    calls = route_calls(router)
+    assert Enum.count(calls, &match?({:post, _meta, ["/ds/:module/:event" | _args]}, &1)) == 1
+    assert Enum.count(calls, &match?({:get, _meta, ["/ds/:module/:event" | _args]}, &1)) == 1
+    assert igniter.issues == []
   end
 
   test "updates an existing star_view section with layout wiring" do
@@ -145,7 +203,7 @@ defmodule Mix.Tasks.StarView.InstallTest do
     """
 
     igniter =
-      phx_test_project(app_name: :octafest)
+      phoenix_project(app_name: :octafest)
       |> update_file_content("lib/octafest_web.ex", fn content ->
         String.replace(content, "\n  def live_view do", old_star_view <> "\n  def live_view do")
       end)
@@ -155,17 +213,35 @@ defmodule Mix.Tasks.StarView.InstallTest do
     layout = file_content(igniter, "lib/octafest_web/components/star_view/layout.ex")
 
     assert web_module =~ "alias OctafestWeb.Components.StarView.Layout"
-    assert web_module =~ "plug(:put_root_layout, false)"
+    assert web_module =~ ~r/plug[( ]:put_root_layout, false\)?/
+    refute_function_contains_def(web_module, :star_view, :star_view)
     assert layout =~ "defmodule OctafestWeb.Components.StarView.Layout do"
   end
 
+  defp phoenix_project(opts) do
+    # Igniter's applied virtual fixtures load lazily; make router discovery
+    # start from the same complete source set as a new Phoenix project.
+    opts |> phx_test_project() |> load_fixture_files()
+  end
+
+  defp load_fixture_files(igniter) do
+    Enum.reduce(
+      Map.keys(igniter.assigns.test_files),
+      igniter,
+      &Igniter.include_existing_file(&2, &1)
+    )
+  end
+
   defp file_content(igniter, path) do
+    igniter = Igniter.include_existing_file(igniter, path)
+
     igniter.rewrite
     |> Rewrite.source!(path)
     |> Rewrite.Source.get(:content)
   end
 
   defp update_file_content(igniter, path, fun) do
+    igniter = Igniter.include_existing_file(igniter, path)
     source = Rewrite.source!(igniter.rewrite, path)
     content = Rewrite.Source.get(source, :content)
     source = Igniter.update_source(source, igniter, :content, fun.(content))
@@ -183,6 +259,18 @@ defmodule Mix.Tasks.StarView.InstallTest do
 
     assert first_index < second_index
   end
+
+  defp route_calls(source) do
+    source
+    |> Code.string_to_quoted!()
+    |> Macro.prewalk([], &collect_route_calls/2)
+    |> elem(1)
+  end
+
+  defp collect_route_calls({verb, _meta, _args} = node, calls) when verb in [:post, :get],
+    do: {node, [node | calls]}
+
+  defp collect_route_calls(node, calls), do: {node, calls}
 
   defp assert_top_level_function_order(source, expected_order) do
     defs =

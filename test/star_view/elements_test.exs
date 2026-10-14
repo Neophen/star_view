@@ -12,6 +12,16 @@ defmodule StarView.ElementsTest do
              """
   end
 
+  test "CR-only HTML lines retain their elements prefix without forging SSE frames" do
+    event = Elements.format_patch("<div id=\"count\">a\rb</div>")
+
+    assert event ==
+             "event: datastar-patch-elements\ndata: elements <div id=\"count\">a\ndata: elements b</div>\n\n"
+
+    assert length(Regex.scan(~r/^event:/m, event)) == 1
+    refute event =~ "\r"
+  end
+
   test "formats all non-default element options in ADR order" do
     assert Elements.format_patch(
              """

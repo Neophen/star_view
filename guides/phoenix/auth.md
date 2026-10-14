@@ -8,6 +8,10 @@ pages rendered with StarView instead of the default
 mix star_view.setup.auth
 ```
 
+This task was included in v0.3.18 and remains available in v0.4.0. It uses the
+optional Igniter dependency; it generates application code rather than adding
+an authentication service to the SDK.
+
 ## What it generates
 
 - `MyAppWeb.AuthController` — the `/auth/sign-in` page. Renders an email form,
@@ -47,7 +51,7 @@ form's events work without running the full installer first.
 Both pages render through `Layout.auth/1`, a full-height auth variant of the
 generated StarView layout:
 
-```elixir
+```heex
 <Layout.auth conn={@conn}>
   ...
 </Layout.auth>

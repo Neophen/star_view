@@ -1,7 +1,7 @@
 defmodule StarView.MixProject do
   use Mix.Project
 
-  @version "0.3.18"
+  @version "0.5.0"
 
   def project() do
     [
@@ -32,8 +32,9 @@ defmodule StarView.MixProject do
     [
       {:quokka, "~> 2.12", only: [:dev, :test], runtime: false},
       {:plug, "~> 1.14"},
-      {:igniter, "~> 0.6", optional: true},
+      {:igniter, "~> 0.8.4", optional: true},
       {:phoenix, "~> 1.7", optional: true},
+      {:phoenix_live_view, "~> 1.0", optional: true},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}
     ]
   end
@@ -46,7 +47,8 @@ defmodule StarView.MixProject do
         "GitHub" => "https://github.com/Neophen/star_view",
         "Datastar" => "https://data-star.dev"
       },
-      files: ~w(assets lib priv guides mix.exs README.md CHANGELOG.md LICENSE .formatter.exs)
+      files:
+        ~w(assets lib priv guides mix.exs README.md CHANGELOG.md LICENSE usage-rules.md .formatter.exs)
     ]
   end
 
@@ -71,14 +73,20 @@ defmodule StarView.MixProject do
       "guides/phoenix/web_module.md",
       "guides/phoenix/layout.md",
       "guides/phoenix/auth.md",
+      "guides/phoenix/pages.md",
       "guides/phoenix/development_server.md",
       "guides/core/patch_signals.md",
+      "guides/core/actions.md",
       "guides/core/patch_element.md",
       "guides/core/stream_deduplication.md",
       "guides/core/csrf.md",
       "guides/comparison/liveview_vs_star_view.md",
+      "guides/examples/phoenix_counter.md",
+      "guides/examples/plug_endpoints.md",
+      "guides/examples/pubsub_stream.md",
       "guides/reference/api_overview.md",
       "guides/reference/migration_from_dstar.md",
+      "guides/reference/troubleshooting.md",
       {"CHANGELOG.md", title: "Changelog"}
     ]
   end
@@ -89,6 +97,7 @@ defmodule StarView.MixProject do
       Phoenix: ~r/guides\/phoenix\/.?/,
       "Core Concepts": ~r/guides\/core\/.?/,
       Comparison: ~r/guides\/comparison\/.?/,
+      Examples: ~r/guides\/examples\/.?/,
       Reference: ~r/guides\/reference\/.?/,
       "Release Notes": ~r/CHANGELOG/
     ]
@@ -104,6 +113,7 @@ defmodule StarView.MixProject do
         StarView.Scripts,
         StarView.Actions,
         StarView.JSON,
+        StarView.Stream,
         StarView.StreamRegistry
       ],
       Plugs: [
@@ -112,8 +122,15 @@ defmodule StarView.MixProject do
       ],
       Phoenix: [
         StarView.Controller,
-        StarView.Dispatch
-      ]
+        StarView.Dispatch,
+        StarView.Page,
+        StarView.Page.Assigns,
+        StarView.Page.Helpers,
+        StarView.Page.Plug,
+        StarView.Component,
+        StarView.Router
+      ],
+      Testing: [StarView.Test]
     ]
   end
 end
