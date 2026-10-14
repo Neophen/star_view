@@ -39,3 +39,25 @@ segments raise because browser normalization would change the route.
 `StarView.SSE.TransportError` distinguishes failed writes from application errors.
 Dispatch halts `:closed`, `:econnreset`, and `:epipe` writes normally. Timeouts and
 other failures propagate.
+
+
+## Optional Phoenix page layer (v0.5.0)
+
+- `use StarView.Page` — `mount/2`, `render/1`, `handle_event/3`,
+  `handle_connect/2`, `handle_info/2`, optional `handle_disconnect/1` and
+  `stream_key/1`. The Page plug uses the shared stream lifecycle.
+- `use StarView.Component` — function components and marked event handlers.
+- `StarView.Router.star_view/2` and `star_view_components/1` — explicit routes.
+- `StarView.Page.Helpers.event/2`, `connect/1` and `patch/4` — safe URLs and
+  component patches. `:opts` is trusted developer JavaScript text.
+- `StarView.Page.Assigns` — one assign API for conns and component maps.
+
+See [the complete examples](../phoenix/pages.md). `handle_disconnect/1` runs once
+on normal and exceptional stream ends, after release, using the latest completed
+callback conn. This is distinct from manual `StarView.Stream.run/2`'s normal-end
+`:disconnect` callback.
+
+`StarView.Test` parses emitted SSE and asserts signal/element patches in Plug
+and Phoenix tests. `patched_signals/1` combines emitted JSON documents, including
+null removals; it does not reconstruct browser state or apply `onlyIfMissing`
+against initial signals.

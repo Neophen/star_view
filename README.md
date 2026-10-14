@@ -30,6 +30,11 @@ authorization, and durable business actions.
 | Construct dispatch URLs with quotes, slashes, or Unicode | `Actions` encodes segments and JavaScript string values |
 | End PubSub streams without leaking ownership across keep-alive requests | `StarView.Stream.open/2` and `StarView.Stream.run/2` own probes and exact claim release |
 
+For one-module page callbacks or shared UI with event handlers, v0.5.0 adds the
+optional `StarView.Page`, `StarView.Component` and `StarView.Router` surface.
+Follow [pages, streams and components](guides/phoenix/pages.md). Existing
+controller entrypoints remain supported.
+
 A short Phoenix event looks like this:
 
 ```elixir
@@ -82,7 +87,7 @@ For manual installation:
 
 ```elixir
 def deps do
-  [{:star_view, "~> 0.4.0"}]
+  [{:star_view, "~> 0.5.0"}]
 end
 ```
 
@@ -129,14 +134,16 @@ when bundling locally. StarView does not ship or grant a license for Datastar Pr
 Keep simple controls as server-rendered HTML with ordinary Datastar signals.
 Consider [Rocket](https://data-star.dev/reference/rocket) for reusable controls
 that need their own browser state and lifecycle; its API is currently beta.
-Rocket is a client choice, not a server SDK component API. v0.4.0 uses
-`Phoenix.Component` and does not expose `StarView.Component`.
+Rocket provides browser state and lifecycle. `StarView.Component` colocates
+Phoenix function components with server event handlers; it creates no server
+process or persistent component state.
 
 ## Choose your server integration
 
 | Integration | Handler contract | Streaming starts |
 | --- | --- | --- |
-| Phoenix marker dispatcher | `handle_event(event, signals, conn)` on a controller using `use StarView` | Before the callback |
+| Phoenix marker dispatcher | `handle_event(event, signals, conn)` on a marked controller/component | Before the callback |
+| Optional page routes | `StarView.Page` mount/render/event callbacks; optional connect/info/disconnect | Before event/connect callbacks |
 | Allowlisted `StarView.Plug.Dispatch` | `handle_event(conn, event, signals)` in a `modules:` entry | Before the callback unless `start: false` |
 | Manual Plug endpoint | Fetch/validate with your own Plug | When you call `StarView.start/1` |
 | Long-running subscription | `StarView.Stream.open/2`, then `StarView.Stream.run/2` callbacks | On successful `open/2` |
@@ -195,3 +202,13 @@ StarView is MIT licensed. The action-safety and stream-lifecycle implementations
 include work adapted from [dstar](https://github.com/ricotrevisan/dstar),
 Copyright (c) 2025 Rico Trevisan. Attribution is retained in source and [LICENSE](LICENSE).
 Datastar and any licensed client bundle retain their own terms.
+
+## Test emitted updates
+
+`StarView.Test` adds `sse_events/1`, `patched_signals/1`,
+`assert_patched_signals/2` and `assert_patched_element/2` for Plug/Phoenix tests.
+These inspect emitted updates; they do not replay the browser's initial state.
+
+`mix star_view.setup.stream_page` creates a removable PubSub demo page and ticker
+with the page/component API and cleanup wiring. See
+[pages and streams](guides/phoenix/pages.md).

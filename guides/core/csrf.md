@@ -13,6 +13,10 @@ The generated client (Datastar v1.0.1) transports POST, PUT, and PATCH signals i
 the JSON body, and GET/DELETE signals in the JSON `datastar` query parameter.
 StarView uses that method contract; verify it when changing your bundled client.
 See the [versioned client source](https://github.com/starfederation/datastar/blob/v1.0.1/library/src/plugins/actions/fetch.ts).
+The v0.5.0 helper checks also used an application-owned Datastar Pro v1.0.4
+bundle and confirmed the same GET/DELETE query behavior, `data-init`, the
+`__window` event modifier and unlimited `retryMaxCount: Infinity` option.
+StarView does not distribute licensed client assets.
 DELETE still needs a valid CSRF token.
 The renaming plug handles both channels. Existing body `_csrf_token` values take
 precedence, followed by the body signal, Datastar query JSON, and a top-level

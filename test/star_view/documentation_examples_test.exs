@@ -6,7 +6,10 @@ defmodule StarView.DocumentationExamplesTest do
   alias StarView.Documentation.RawCounterEndpoint
   alias StarView.DocumentationWeb.CounterButton
   alias StarView.DocumentationWeb.CounterController
+  alias StarView.DocumentationWeb.CounterPage
   alias StarView.DocumentationWeb.CounterStreamController
+  alias StarView.DocumentationWeb.DashboardPage
+  alias StarView.DocumentationWeb.DetailDrawer
   alias StarView.SSE.TransportError
   alias StarView.TestAssertions
   alias StarView.TransportAdapter
@@ -18,6 +21,9 @@ defmodule StarView.DocumentationExamplesTest do
     compile_example("guides/examples/plug_endpoints.md", "MyApp.RawCounterEndpoint")
     compile_example("guides/examples/pubsub_stream.md", "MyAppWeb.CounterStreamController")
     compile_example("guides/core/actions.md", "MyAppWeb.CounterButton")
+    compile_example("guides/phoenix/pages.md", "MyAppWeb.CounterPage")
+    compile_example("guides/phoenix/pages.md", "MyAppWeb.DashboardPage")
+    compile_example("guides/phoenix/pages.md", "MyAppWeb.DetailDrawer")
     :ok
   end
 
@@ -99,6 +105,74 @@ defmodule StarView.DocumentationExamplesTest do
     assert StarView.StreamRegistry.owner({{:counter, "reader"}, "doc-tab"}) == :error
   end
 
+  test "complete page example renders and its method/count guards protect mutation clauses" do
+    initial = StarView.Page.Plug.call(conn(:get, "/counter"), {:page, CounterPage})
+    assert initial.status == 200
+    assert initial.resp_body =~ ~s(id="increment")
+    conn = page_event(:post, %{"count" => 2})
+    StarView.Test.assert_patched_signals(conn, %{count: 3})
+    StarView.Test.assert_patched_element(conn, "#history")
+
+    for count <- ["2", -1, 1_000_000, nil] do
+      assert StarView.Test.patched_signals(page_event(:post, %{"count" => count})) == %{}
+    end
+
+    assert StarView.Test.patched_signals(page_event(:get, %{"count" => 2})) == %{}
+  end
+
+  test "complete shared event component compiles and guards its submitted values" do
+    html =
+      apply(DetailDrawer, :drawer, [%{__changed__: nil, item: %{id: "id/123"}}]) |> html_string()
+
+    assert html =~ "change_title%3Aid%2F123"
+    encoded = StarView.Actions.encode_module(DetailDrawer)
+    conn = conn(:post, "/", ~s({"title":"New title"}))
+    conn = %{conn | path_params: %{"module" => encoded, "event" => "change_title:id/123"}}
+    result = StarView.Dispatch.call(conn, [])
+    StarView.Test.assert_patched_signals(result, %{saved: true})
+  end
+
+  test "complete page stream example unsubscribes under a reusable owner" do
+    start_supervised!({Phoenix.PubSub, name: @pubsub})
+    parent = self()
+    child = start_supervised!({Task, fn -> run_page_stream_example(parent) end}, id: make_ref())
+    :erlang.trace_pattern({DashboardPage, :handle_connect, 2}, [{:_, [], [{:return_trace}]}], [])
+    :erlang.trace(child, true, [:call])
+    on_exit(fn -> :erlang.trace_pattern({DashboardPage, :handle_connect, 2}, false, []) end)
+    send(child, :run)
+
+    assert_receive {:trace, ^child, :return_from, {DashboardPage, :handle_connect, 2},
+                    %Plug.Conn{}},
+                   1_000
+
+    Phoenix.PubSub.broadcast(@pubsub, "orders", {:order_count, 42})
+    Phoenix.PubSub.broadcast(@pubsub, "orders", :done)
+    assert_receive {:page_stream_finished, ^child, result, []}, 1_000
+    StarView.Test.assert_patched_signals(result, %{orders: 42})
+  end
+
+  defp page_event(:get, signals) do
+    query = URI.encode_query(%{"datastar" => StarView.JSON.encode!(signals)})
+    conn = conn(:get, "/counter/_event/increment?#{query}")
+    conn = %{conn | path_params: %{"event" => "increment"}}
+    StarView.Page.Plug.call(conn, {:event, CounterPage})
+  end
+
+  defp page_event(method, signals) do
+    conn = conn(method, "/counter/_event/increment", StarView.JSON.encode!(signals))
+    conn = %{conn | path_params: %{"event" => "increment"}}
+    StarView.Page.Plug.call(conn, {:event, CounterPage})
+  end
+
+  defp run_page_stream_example(parent) do
+    receive do
+      :run -> :ok
+    end
+
+    result = StarView.Page.Plug.call(conn(:post, "/dashboard"), {:stream, DashboardPage})
+    send(parent, {:page_stream_finished, self(), result, Registry.keys(@pubsub, self())})
+  end
+
   defp compile_example(path, module) do
     block =
       path
@@ -110,6 +184,10 @@ defmodule StarView.DocumentationExamplesTest do
     assert is_binary(block), "missing complete example #{module} in #{path}"
 
     block
+    |> String.replace(
+      "alias MyAppWeb.Components.StarView.Layout",
+      "alias StarView.DocumentationLayout, as: Layout"
+    )
     |> String.replace("MyAppWeb", "StarView.DocumentationWeb")
     |> String.replace("MyApp.", "StarView.Documentation.")
     |> Code.compile_string(path)

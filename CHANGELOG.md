@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.5.0
+
+### Added
+
+- Reconciled the unpublished local Page, Component and Router work into an
+  optional stable Phoenix surface. Existing controller/core APIs remain supported.
+- `StarView.Page` colocates mount, render, event and stream callbacks;
+  `StarView.Component` colocates shared UI with marked event handlers.
+- Page streams use the existing `StarView.Stream` lifecycle and coordinator;
+  there is no separate receive loop or process framework. Optional
+  `handle_disconnect/1` runs once after exact claim release on normal ends,
+  takeover and raised callbacks, using the latest completed callback conn.
+- New router macros default to POST-only events. Extra unsafe methods are
+  explicit; page GET is opt-in and component GET is restricted to an explicit
+  marked-module allowlist via additive `Dispatch` `:only` options.
+- Page/component helpers reuse safe JSON/segment encoding. Browser pathname and
+  component dispatch bases are validated as local paths before any request.
+- Added `StarView.Test` assertions for emitted Plug/Phoenix SSE, including
+  multiline JSON, nested expected keys and explicit null patches.
+- Added a removable `mix star_view.setup.stream_page` PubSub demo with supervised
+  ticker, routing and CSRF wiring, plus disconnect unsubscribe.
+- Added the page/component guide and packaged usage rules. The published 0.4.0
+  transport/security/installer fixes and dependency lock remain in place.
+- Fixed optional installer task compilation in Plug-only consumers without
+  Igniter; optional dependencies remain optional.
+
+The new page/component/routing design adapts dstar's MIT work. The original
+unpublished checkout remains separate; stale version and registry implementations
+were not carried into the release.
+
 ## v0.4.0
 
 ### Compatibility and security changes

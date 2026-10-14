@@ -20,6 +20,10 @@ defmodule StarView.Dispatch do
   `:closed`, `:econnreset`, or `:epipe` halts normally; other exceptions are
   logged and re-raised. Route
   authentication and per-event authorization remain the application's job.
+
+  An optional `:only` module list narrows marker dispatch for a route. It never
+  bypasses the marker requirement. The default preserves legacy dispatch; the
+  new router macros use this list for explicit read-only GET component routes.
   """
 
   @behaviour Plug
@@ -32,15 +36,28 @@ defmodule StarView.Dispatch do
   require Logger
 
   @impl Plug
-  def init(opts), do: opts
+  def init(opts) do
+    case only_modules(opts) do
+      nil -> opts
+      modules when is_list(modules) -> validate_only_modules!(opts, modules)
+      _ -> raise ArgumentError, ":only must be a module list"
+    end
+  end
+
+  defp validate_only_modules!(opts, modules) do
+    if module_list?(modules),
+      do: opts,
+      else: raise(ArgumentError, ":only must be a module list")
+  end
 
   @impl Plug
-  def call(conn, _opts) do
+  def call(conn, opts) do
     conn = fetch_query_params(conn)
     module_param = conn.path_params["module"] || conn.params["module"]
     event = conn.path_params["event"] || conn.params["event"]
 
     with {:ok, module} <- decode_handler(module_param),
+         true <- permitted_module?(module, opts),
          {:ok, signals, conn} <- Signals.fetch(conn) do
       conn
       |> StarView.start()
@@ -53,6 +70,20 @@ defmodule StarView.Dispatch do
         send_error(conn, 404, "Not found")
     end
   end
+
+  defp permitted_module?(module, opts) do
+    case only_modules(opts) do
+      nil -> true
+      modules -> module in modules
+    end
+  end
+
+  defp only_modules(opts) when is_list(opts) do
+    if Keyword.keyword?(opts), do: Keyword.get(opts, :only)
+  end
+
+  defp only_modules(_opts), do: nil
+  defp module_list?(modules), do: Enum.all?(modules, &is_atom/1)
 
   @doc false
   def invoke(conn, module, event, signals, order) do

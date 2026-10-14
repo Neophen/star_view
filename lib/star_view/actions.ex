@@ -145,7 +145,8 @@ defmodule StarView.Actions do
   end
 
   # URL-safety rules adapted from dstar (MIT), Rico Trevisan, 2025.
-  defp encode_segment!(segment) do
+  @doc false
+  def encode_segment!(segment) when is_binary(segment) do
     if segment in ["", ".", ".."] or not String.valid?(segment) do
       raise ArgumentError, "path segment must be valid UTF-8 and not empty or a dot segment"
     end
@@ -163,10 +164,23 @@ defmodule StarView.Actions do
       ".replace(/[!'()*\\.]/g, char => '%' + char.charCodeAt(0).toString(16).toUpperCase()) })($_star_view_module)"
   end
 
-  defp javascript_string(value) do
+  @doc false
+  def javascript_string(value) do
     value
     |> StarView.JSON.encode!()
     |> String.replace("\u2028", "\\u2028")
     |> String.replace("\u2029", "\\u2029")
+  end
+
+  @doc false
+  def browser_local_path(expression, trim_trailing? \\ true) do
+    result = if trim_trailing?, do: "base.replace(/\\/+$/, '')", else: "base"
+
+    "((base) => { if (typeof base !== 'string') throw new TypeError('invalid StarView path'); " <>
+      "const decoded = decodeURIComponent(base); " <>
+      "if (!base.startsWith('/') || base.startsWith('//') || decoded.startsWith('//') || " <>
+      "/[\\\\?#\\x00-\\x1F\\x7F]/.test(base) || /[\\\\?#\\x00-\\x1F\\x7F]/.test(decoded) || " <>
+      "/(^|\\/)\\.{1,2}(\\/|$)/.test(decoded)) throw new TypeError('invalid StarView path'); " <>
+      "return #{result} })(#{expression})"
   end
 end

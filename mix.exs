@@ -1,7 +1,7 @@
 defmodule StarView.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.5.0"
 
   def project() do
     [
@@ -47,7 +47,8 @@ defmodule StarView.MixProject do
         "GitHub" => "https://github.com/Neophen/star_view",
         "Datastar" => "https://data-star.dev"
       },
-      files: ~w(assets lib priv guides mix.exs README.md CHANGELOG.md LICENSE .formatter.exs)
+      files:
+        ~w(assets lib priv guides mix.exs README.md CHANGELOG.md LICENSE usage-rules.md .formatter.exs)
     ]
   end
 
@@ -72,6 +73,7 @@ defmodule StarView.MixProject do
       "guides/phoenix/web_module.md",
       "guides/phoenix/layout.md",
       "guides/phoenix/auth.md",
+      "guides/phoenix/pages.md",
       "guides/phoenix/development_server.md",
       "guides/core/patch_signals.md",
       "guides/core/actions.md",
@@ -120,8 +122,15 @@ defmodule StarView.MixProject do
       ],
       Phoenix: [
         StarView.Controller,
-        StarView.Dispatch
-      ]
+        StarView.Dispatch,
+        StarView.Page,
+        StarView.Page.Assigns,
+        StarView.Page.Helpers,
+        StarView.Page.Plug,
+        StarView.Component,
+        StarView.Router
+      ],
+      Testing: [StarView.Test]
     ]
   end
 end

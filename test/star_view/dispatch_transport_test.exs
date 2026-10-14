@@ -79,6 +79,34 @@ defmodule StarView.DispatchTransportTest do
     refute result.assigns[:written]
   end
 
+  test "legacy non-keyword options remain unchanged and do not restrict dispatch" do
+    Enum.each([%{}, %{only: []}, :legacy, ["legacy"]], &assert_legacy_options/1)
+  end
+
+  test "keyword only options remain validated and deny unlisted marked modules" do
+    opts = Dispatch.init(only: [])
+    result = Dispatch.call(body_conn(), opts)
+    assert result.status == 404
+    assert result.state == :sent
+    assert_raise ArgumentError, fn -> Dispatch.init(only: ["not-a-module"]) end
+    assert_raise ArgumentError, fn -> Dispatch.init(only: :legacy) end
+  end
+
+  defp assert_legacy_options(opts) do
+    assert Dispatch.init(opts) == opts
+    result = Dispatch.call(body_conn(), opts)
+    assert result.assigns.signals == %{"count" => 3}
+  end
+
+  defp body_conn() do
+    conn = conn(:post, "/", ~s({"count":3}))
+
+    %{
+      conn
+      | path_params: %{"module" => Actions.encode_module(TransportHandler), "event" => "body"}
+    }
+  end
+
   defp dispatch_conn(handler, event, reason) do
     conn = conn(:post, "/", %{})
 

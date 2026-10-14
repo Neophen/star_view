@@ -1,14 +1,13 @@
-defmodule Mix.Tasks.StarView.Setup.Dispatch do
-  @shortdoc "Adds Phoenix dispatch routing and Datastar CSRF compatibility"
-  @moduledoc """
-  Adds a POST `/ds/:module/:event` route for `StarView.Dispatch` and inserts
-  `StarView.Plug.RenameCsrfParam` before browser CSRF protection.
+if Code.ensure_loaded?(Igniter) do
+  defmodule Mix.Tasks.StarView.Setup.Dispatch do
+    @shortdoc "Adds Phoenix dispatch routing and Datastar CSRF compatibility"
+    @moduledoc """
+    Adds a POST `/ds/:module/:event` route for `StarView.Dispatch` and inserts
+    `StarView.Plug.RenameCsrfParam` before browser CSRF protection.
 
-  This task does not generate sample controllers. Register additional HTTP
-  verbs explicitly when your application uses their action helpers.
-  """
-
-  if Code.ensure_loaded?(Igniter) do
+    This task does not generate sample controllers. Register additional HTTP
+    verbs explicitly when your application uses their action helpers.
+    """
     use Igniter.Mix.Task
 
     @impl Igniter.Mix.Task
@@ -87,7 +86,8 @@ defmodule Mix.Tasks.StarView.Setup.Dispatch do
       )
     end
 
-    defp ensure_csrf_rename_plug(igniter, router) do
+    @doc false
+    def ensure_csrf_rename_plug(igniter, router) do
       if String.contains?(router_source(igniter, router), "StarView.Plug.RenameCsrfParam") do
         igniter
       else
@@ -135,7 +135,17 @@ defmodule Mix.Tasks.StarView.Setup.Dispatch do
       {_, source, _zipper} = Igniter.Project.Module.find_module!(igniter, router)
       Rewrite.Source.get(source, :content)
     end
-  else
+  end
+else
+  defmodule Mix.Tasks.StarView.Setup.Dispatch do
+    @shortdoc "Adds Phoenix dispatch routing and Datastar CSRF compatibility"
+    @moduledoc """
+    Adds a POST `/ds/:module/:event` route for `StarView.Dispatch` and inserts
+    `StarView.Plug.RenameCsrfParam` before browser CSRF protection.
+
+    This task does not generate sample controllers. Register additional HTTP
+    verbs explicitly when your application uses their action helpers.
+    """
     use Mix.Task
 
     @impl Mix.Task
