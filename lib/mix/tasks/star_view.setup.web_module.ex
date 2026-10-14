@@ -47,24 +47,32 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp patch_web_module(igniter, web_module) do
-      result =
-        Igniter.Project.Module.find_and_update_module!(igniter, web_module, fn zipper ->
-          case Igniter.Code.Function.move_to_def(zipper, :star_view, 0) do
-            {:ok, star_view_zipper} ->
-              {:ok, ensure_star_view_section(star_view_zipper, web_module)}
+      update_web_module(igniter, web_module)
+    rescue
+      _ ->
+        Igniter.add_warning(igniter, "Could not find web module #{inspect(web_module)} to patch.")
+    end
 
-            _ ->
-              {:ok, add_star_view_section(zipper, web_module)}
-          end
-        end)
+    defp update_web_module(igniter, web_module) do
+      result =
+        Igniter.Project.Module.find_and_update_module!(
+          igniter,
+          web_module,
+          &update_star_view_section(&1, web_module)
+        )
 
       Igniter.add_notice(
         result,
         "Patched #{inspect(web_module)} with a `star_view` section."
       )
-    rescue
-      _ ->
-        Igniter.add_warning(igniter, "Could not find web module #{inspect(web_module)} to patch.")
+    end
+
+    defp update_star_view_section(zipper, web_module) do
+      # Replacement needs the whole definition; the default target is its body.
+      case Igniter.Code.Function.move_to_def(zipper, :star_view, 0, target: :at) do
+        {:ok, star_view_zipper} -> {:ok, ensure_star_view_section(star_view_zipper, web_module)}
+        _ -> {:ok, add_star_view_section(zipper, web_module)}
+      end
     end
 
     defp create_layout_module(igniter, web_module) do

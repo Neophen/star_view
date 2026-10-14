@@ -91,7 +91,7 @@ defmodule AppWeb.SearchController do
 
   def item(assigns) do
     ~H"""
-    <li class="border p-4" data-show={starts_with?("'#{@item}'")}>
+    <li class="border p-4" data-show={starts_with?(StarView.JSON.encode!(@item))}>
       {@item}
     </li>
     """
@@ -312,7 +312,7 @@ end
 The markup describes the behavior directly:
 
 ```html
-<li class="border p-4" data-show={starts_with?("'#{@item}'")}>
+<li class="border p-4" data-show={starts_with?(StarView.JSON.encode!(@item))}>
 ```
 
 The input updates `$query` locally. The list visibility updates locally. The empty-state text updates locally.

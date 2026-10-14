@@ -197,32 +197,46 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp add_auth_layout_function(igniter, layout_module) do
-      Igniter.Project.Module.find_and_update_module!(igniter, layout_module, fn zipper ->
-        case Igniter.Code.Function.move_to_def(zipper, :app, 1) do
-          {:ok, app_zipper} ->
-            {:ok,
-             Igniter.Code.Common.add_code(app_zipper, @auth_layout_section, placement: :after)}
+      Igniter.Project.Module.find_and_update_module!(
+        igniter,
+        layout_module,
+        &insert_auth_layout/1
+      )
+    end
 
-          :error ->
-            {:ok, Igniter.Code.Common.add_code(zipper, @auth_layout_section, placement: :after)}
-        end
-      end)
+    defp insert_auth_layout(zipper) do
+      # Add a module-level sibling, rather than inserting inside app/1.
+      case Igniter.Code.Function.move_to_def(zipper, :app, 1, target: :at) do
+        {:ok, app_zipper} ->
+          {:ok, Igniter.Code.Common.add_code(app_zipper, @auth_layout_section, placement: :after)}
+
+        :error ->
+          {:ok, Igniter.Code.Common.add_code(zipper, @auth_layout_section, placement: :after)}
+      end
     end
 
     defp add_root_layout_attrs(igniter, layout_module, content) do
-      if String.contains?(content, "attr :html_class") do
-        igniter
-      else
-        Igniter.Project.Module.find_and_update_module!(igniter, layout_module, fn zipper ->
-          case Igniter.Code.Function.move_to_defp(zipper, :root, 1) do
-            {:ok, root_zipper} ->
-              {:ok,
-               Igniter.Code.Common.add_code(root_zipper, @root_layout_attrs, placement: :before)}
+      maybe_add_root_attrs(igniter, layout_module, String.contains?(content, "attr :html_class"))
+    end
 
-            :error ->
-              {:warning, root_layout_warning(layout_module)}
-          end
-        end)
+    defp maybe_add_root_attrs(igniter, _layout_module, true), do: igniter
+
+    defp maybe_add_root_attrs(igniter, layout_module, false) do
+      Igniter.Project.Module.find_and_update_module!(
+        igniter,
+        layout_module,
+        &insert_root_attrs(&1, layout_module)
+      )
+    end
+
+    defp insert_root_attrs(zipper, layout_module) do
+      # Component attributes belong before the definition, outside its body.
+      case Igniter.Code.Function.move_to_defp(zipper, :root, 1, target: :at) do
+        {:ok, root_zipper} ->
+          {:ok, Igniter.Code.Common.add_code(root_zipper, @root_layout_attrs, placement: :before)}
+
+        :error ->
+          {:warning, root_layout_warning(layout_module)}
       end
     end
 

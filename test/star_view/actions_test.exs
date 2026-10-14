@@ -13,13 +13,85 @@ defmodule StarView.ActionsTest do
 
   test "generates module action expressions" do
     assert Actions.post(PageController, "increment") ==
-             "@post('/ds/star_view-test_handlers-page_controller/increment')"
+             ~S|@post("/ds/star_view-test_handlers-page_controller/increment")|
 
     assert Actions.get(PageController, "show", prefix: "/admin") ==
-             "@get('/admin/ds/star_view-test_handlers-page_controller/show')"
+             ~S|@get("/admin/ds/star_view-test_handlers-page_controller/show")|
   end
 
   test "generates dynamic action expressions" do
-    assert Actions.post("increment") == "@post('/ds/' + $_star_view_module + '/increment')"
+    action = Actions.post("increment")
+    assert action =~ "encodeURIComponent(segment)"
+    assert action =~ "})($_star_view_module)"
+    assert action =~ ~s(+ "/increment")
+  end
+
+  test "encodes special event values as one literal route segment" do
+    event = "save/'\\?%#\nč."
+    action = Actions.post(PageController, event)
+
+    assert action ==
+             ~S|@post("/ds/star_view-test_handlers-page_controller/save%2F%27%5C%3F%25%23%0A%C4%8D%2E")|
+
+    refute action =~ "\n"
+  end
+
+  test "literal module overrides remain data rather than executable syntax" do
+    assert Actions.post("save", module: "x'); evil();//") ==
+             ~S|@post("/ds/x%27%29%3B%20evil%28%29%3B%2F%2F/save")|
+  end
+
+  test "custom signal module overrides fail loudly and the default signal stays compatible" do
+    assert_raise ArgumentError, fn -> Actions.post("save", module: "$signal") end
+    assert Actions.post("save", module: "$_star_view_module") == Actions.post("save")
+  end
+
+  test "serializes prefixes as JavaScript strings" do
+    assert Actions.post(PageController, "save", prefix: ~s(/it's "safe")) ==
+             ~S|@post("/it's \"safe\"/ds/star_view-test_handlers-page_controller/save")|
+  end
+
+  test "rejects prefixes that change origin or URL structure" do
+    prefixes = [
+      "https://evil.test",
+      "//evil.test",
+      "/../evil",
+      "/%2e%2e/evil",
+      "/x?y",
+      "/x#y",
+      "/x\\y",
+      "/%5cx",
+      "/x\n",
+      "/x%0a",
+      "/%",
+      "/%FF",
+      <<47, 255>>
+    ]
+
+    Enum.each(prefixes, &assert_invalid_prefix/1)
+  end
+
+  test "normalizes safe relative prefixes for compatibility" do
+    assert Actions.post(PageController, "save", prefix: "admin/") ==
+             ~S|@post("/admin/ds/star_view-test_handlers-page_controller/save")|
+  end
+
+  test "escapes JavaScript line separator characters in prefixes" do
+    action = Actions.post(PageController, "save", prefix: "/x\u2028\u2029")
+    assert action =~ "\\u2028\\u2029"
+    refute action =~ "\u2028"
+  end
+
+  test "rejects empty and exact dot segments" do
+    Enum.each(["", ".", "..", <<255>>], &assert_invalid_event/1)
+    assert_raise ArgumentError, fn -> Actions.post("save", module: "..") end
+  end
+
+  defp assert_invalid_prefix(prefix) do
+    assert_raise ArgumentError, fn -> Actions.post(PageController, "save", prefix: prefix) end
+  end
+
+  defp assert_invalid_event(event) do
+    assert_raise ArgumentError, fn -> Actions.post(PageController, event) end
   end
 end

@@ -22,7 +22,7 @@ if Code.ensure_loaded?(Igniter) do
         example: __MODULE__.Docs.example(),
         only: nil,
         positional: [],
-        composes: [],
+        composes: ["star_view.setup.dispatch"],
         schema: [router: :string],
         defaults: [],
         aliases: [],
@@ -72,98 +72,30 @@ if Code.ensure_loaded?(Igniter) do
     defp maybe_patch_router(igniter, _web_module, false), do: igniter
 
     defp maybe_patch_router(igniter, web_module, true) do
-      {igniter, router} =
-        Igniter.Libs.Phoenix.select_router(
-          igniter,
-          "Which Phoenix router should StarView add routes to?"
-        )
-
-      if router do
-        do_patch_router(igniter, web_module, router)
-      else
-        Igniter.add_warning(igniter, "No Phoenix router found. Skipping route setup.")
-      end
+      {igniter, router} = Mix.Tasks.StarView.Setup.Dispatch.select_router(igniter)
+      append_example_route(igniter, web_module, router)
     end
 
-    defp do_patch_router(igniter, web_module, router) do
+    defp append_example_route(igniter, _web_module, nil) do
+      Igniter.add_warning(igniter, "No Phoenix router found. Skipping example route setup.")
+    end
+
+    defp append_example_route(igniter, web_module, router) do
+      igniter = Igniter.compose_task(igniter, "star_view.setup.dispatch")
       {_, source, _zipper} = Igniter.Project.Module.find_module!(igniter, router)
       source_str = Rewrite.Source.get(source, :content)
 
-      already_has_ds_route? = String.contains?(source_str, ~s("/ds/:module/:event"))
-
-      igniter =
-        if already_has_ds_route? do
-          already_has_demo? = String.contains?(source_str, "/search")
-
-          if already_has_demo? do
-            igniter
-          else
-            Igniter.Libs.Phoenix.append_to_scope(
-              igniter,
-              "/",
-              "get \"/search\", SearchController, :mount\n",
-              with_pipelines: [:browser],
-              arg2: web_module,
-              router: router
-            )
-          end
-        else
-          route_contents = """
-          get "/search", SearchController, :mount
-          post "/ds/:module/:event", StarView.Dispatch, [], alias: false
-          """
-
-          Igniter.Libs.Phoenix.append_to_scope(
-            igniter,
-            "/",
-            route_contents,
-            with_pipelines: [:browser],
-            arg2: web_module,
-            router: router
-          )
-        end
-
-      ensure_csrf_rename_plug(igniter, router)
-    end
-
-    defp ensure_csrf_rename_plug(igniter, router) do
-      {_, source, _zipper} = Igniter.Project.Module.find_module!(igniter, router)
-      source_str = Rewrite.Source.get(source, :content)
-
-      if String.contains?(source_str, "StarView.Plug.RenameCsrfParam") do
+      if String.contains?(source_str, ~s("/search")) do
         igniter
       else
-        Igniter.Project.Module.find_and_update_module!(igniter, router, fn zipper ->
-          with {:ok, pipeline} <-
-                 Igniter.Code.Function.move_to_function_call(
-                   zipper,
-                   :pipeline,
-                   2,
-                   &Igniter.Code.Function.argument_equals?(&1, 0, :browser)
-                 ),
-               {:ok, pipeline_block} <- Igniter.Code.Common.move_to_do_block(pipeline),
-               {:ok, protect_from_forgery} <-
-                 Igniter.Code.Function.move_to_function_call_in_current_scope(
-                   pipeline_block,
-                   :plug,
-                   [1, 2],
-                   &Igniter.Code.Function.argument_equals?(&1, 0, :protect_from_forgery)
-                 ) do
-            {:ok,
-             Igniter.Code.Common.add_code(
-               protect_from_forgery,
-               "plug StarView.Plug.RenameCsrfParam",
-               placement: :before
-             )}
-          else
-            _ ->
-              {:warning,
-               """
-               Could not add StarView.Plug.RenameCsrfParam to the #{inspect(router)} browser pipeline.
-               Add it before `plug :protect_from_forgery` manually.
-               """}
-          end
-        end)
+        Igniter.Libs.Phoenix.append_to_scope(
+          igniter,
+          "/",
+          ~s(get "/search", SearchController, :mount),
+          with_pipelines: [:browser],
+          arg2: web_module,
+          router: router
+        )
       end
     end
   end

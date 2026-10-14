@@ -54,6 +54,7 @@ if Code.ensure_loaded?(Igniter) do
           "star_view.setup.streaming",
           "star_view.setup.datastar",
           "star_view.setup.web_module",
+          "star_view.setup.dispatch",
           "star_view.setup.search_controller"
         ],
         schema: [
@@ -81,11 +82,7 @@ if Code.ensure_loaded?(Igniter) do
       https? = Keyword.get(options, :https, true)
       example? = Keyword.get(options, :example, true)
 
-      {igniter, router} =
-        Igniter.Libs.Phoenix.select_router(
-          igniter,
-          "Which Phoenix router should StarView add routes to?"
-        )
+      {igniter, router} = Mix.Tasks.StarView.Setup.Dispatch.select_router(igniter)
 
       phoenix? = router != nil
 
@@ -93,6 +90,7 @@ if Code.ensure_loaded?(Igniter) do
       |> maybe_compose_streaming(stream_dedup?)
       |> maybe_compose_datastar(https?)
       |> maybe_compose_web_module(phoenix?)
+      |> maybe_compose_dispatch(phoenix?)
       |> maybe_compose_search_controller(example?)
       |> maybe_print_post_install(phoenix?)
     end
@@ -115,6 +113,12 @@ if Code.ensure_loaded?(Igniter) do
       Igniter.compose_task(igniter, "star_view.setup.web_module")
     end
 
+    defp maybe_compose_dispatch(igniter, false), do: igniter
+
+    defp maybe_compose_dispatch(igniter, true) do
+      Igniter.compose_task(igniter, "star_view.setup.dispatch")
+    end
+
     defp maybe_compose_search_controller(igniter, false), do: igniter
 
     defp maybe_compose_search_controller(igniter, true) do
@@ -125,7 +129,8 @@ if Code.ensure_loaded?(Igniter) do
       Igniter.add_notice(igniter, """
       StarView installed!
 
-      Routes have been added to your router automatically.
+      POST dispatch routing and Datastar CSRF compatibility have been configured.
+      Register additional HTTP verbs explicitly when your application needs them.
 
       Your web module has been patched with a `star_view` section.
       If the patch failed, add it manually:

@@ -37,10 +37,11 @@ defmodule StarView.SSE do
     data_lines = List.wrap(data_lines)
     content = format_event(event_type, data_lines, opts)
 
-    case Conn.chunk(conn, content) do
-      {:ok, conn} -> {:ok, conn}
-      {:error, reason} -> {:error, reason}
-    end
+    write_chunk(conn, content)
+  end
+
+  defp write_chunk(conn, content) do
+    Conn.chunk(conn, content)
   rescue
     error in ArgumentError -> {:error, error}
   end
@@ -52,7 +53,7 @@ defmodule StarView.SSE do
   def send!(%Conn{} = conn, event_type, data_lines, opts \\ []) do
     case send(conn, event_type, data_lines, opts) do
       {:ok, conn} -> conn
-      {:error, reason} -> raise "failed to send SSE event: #{inspect(reason)}"
+      {:error, reason} -> raise StarView.SSE.TransportError, reason: reason, conn: conn
     end
   end
 
@@ -67,11 +68,11 @@ defmodule StarView.SSE do
 
     [
       "event: ",
-      event_type,
+      strip_line_breaks(event_type),
       "\n",
       optional_id(opts[:event_id]),
       optional_retry(retry_duration),
-      Enum.map(data_lines, &["data: ", &1, "\n"]),
+      data_lines |> Enum.flat_map(&split_data_value/1) |> Enum.map(&["data: ", &1, "\n"]),
       "\n"
     ]
     |> IO.iodata_to_binary()
@@ -92,11 +93,21 @@ defmodule StarView.SSE do
 
   defp optional_id(nil), do: []
   defp optional_id(""), do: []
-  defp optional_id(event_id), do: ["id: ", to_string(event_id), "\n"]
+  defp optional_id(event_id), do: ["id: ", strip_line_breaks(event_id), "\n"]
 
   defp optional_retry(nil), do: []
   defp optional_retry(@default_sse_retry_duration), do: []
-  defp optional_retry(retry), do: ["retry: ", to_string(retry), "\n"]
+  defp optional_retry(retry), do: ["retry: ", strip_line_breaks(retry), "\n"]
+
+  # CR, LF and CRLF are SSE line terminators. Re-prefix multiline data and
+  # strip terminators from single-valued fields so values cannot forge frames.
+  defp split_data_value(value) when is_binary(value),
+    do: String.split(value, ["\r\n", "\r", "\n"])
+
+  defp split_data_value(value),
+    do: raise(ArgumentError, "SSE data lines must be strings, got: #{inspect(value)}")
+
+  defp strip_line_breaks(value), do: value |> to_string() |> String.replace(["\r", "\n"], "")
 
   defp maybe_put_http1_connection_header(%Conn{private: private} = conn) do
     case private[:star_view_http_version] || adapter_http_protocol(conn) do

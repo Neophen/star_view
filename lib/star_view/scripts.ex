@@ -97,16 +97,34 @@ defmodule StarView.Scripts do
     "<script#{attrs}>#{escape_script_content(script)}</script>"
   end
 
-  defp attribute_to_iodata(attribute) when is_binary(attribute), do: [" ", attribute]
-  defp attribute_to_iodata({key, true}), do: [" ", to_string(key)]
+  defp attribute_to_iodata(attribute) when is_binary(attribute),
+    do: [" ", validate_attr_name!(attribute)]
+
+  defp attribute_to_iodata({key, true}), do: [" ", validate_attr_name!(key)]
   defp attribute_to_iodata({_key, false}), do: []
   defp attribute_to_iodata({_key, nil}), do: []
 
   defp attribute_to_iodata({key, value}) do
-    [" ", to_string(key), "=\"", escape_html_attr(to_string(value)), "\""]
+    [" ", validate_attr_name!(key), "=\"", escape_html_attr(to_string(value)), "\""]
   end
 
-  defp escape_script_content(script), do: Regex.replace(~r/<\/script/i, script, "<\\/script")
+  @attr_name ~r/\A[A-Za-z0-9_:.-]+\z/
+
+  defp validate_attr_name!(name) do
+    name = to_string(name)
+
+    if Regex.match?(@attr_name, name) do
+      name
+    else
+      raise ArgumentError, "invalid script attribute name #{inspect(name)}"
+    end
+  end
+
+  # Keep the original string's case while neutralizing the HTML closing tag.
+  defp escape_script_content(script),
+    do: Regex.replace(~r{</script}i, script, &escape_script_close/1)
+
+  defp escape_script_close(match), do: "<\\" <> String.slice(match, 1..-1//1)
 
   defp escape_html_attr(value) do
     value

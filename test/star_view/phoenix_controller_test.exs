@@ -8,6 +8,7 @@ defmodule StarView.ControllerTest do
   alias StarView.Controller
   alias StarView.Dispatch
   alias StarView.TestAssertions
+  alias StarView.TestComponents
   alias StarView.TestHandlers.NoAutoRenderController
   alias StarView.TestHandlers.OrderController
   alias StarView.TestHandlers.PageController
@@ -85,5 +86,25 @@ defmodule StarView.ControllerTest do
              data: elements <div id="count">3</div>
 
              """
+  end
+
+  test "patch_element supplies HEEx change tracking for components that assign values" do
+    conn = conn(:post, "/") |> StarView.start() |> assign(:count, 3)
+    conn = Controller.patch_element(conn, &TestComponents.tracked/1)
+    assert {200, _headers, body} = TestAssertions.chunked_resp(conn)
+    assert body =~ "data: elements <div id=\"tracked\">4</div>"
+    refute Map.has_key?(conn.assigns, :__changed__)
+  end
+
+  test "patch_element preserves explicit change tracking metadata" do
+    conn = conn(:post, "/") |> StarView.start() |> assign(:__changed__, %{existing: true})
+    conn = Controller.patch_element(conn, &tracked_metadata/1)
+    assert {200, _headers, body} = TestAssertions.chunked_resp(conn)
+    assert body =~ "existing=true"
+  end
+
+  defp tracked_metadata(assigns) do
+    assert assigns.__changed__ == %{existing: true}
+    "<div id=\"metadata\">existing=true</div>"
   end
 end

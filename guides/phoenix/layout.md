@@ -1,12 +1,13 @@
 # StarView Layout
 
 The Igniter installer generates a dedicated layout module for StarView
-controllers:
+controllers. This manual variant uses the optional application-owned
+`:star_component` entrypoint described in the [web module guide](web_module.md)
+and loads Datastar through the application's asset bundle:
 
 ```elixir
 defmodule MyAppWeb.Components.StarView.Layout do
-  use MyAppWeb, :html
-  import StarView.Controller, only: [init_signals: 1]
+  use MyAppWeb, :star_component
 
   attr :conn, :map, required: true
   attr :lang, :string, default: "en"
@@ -66,7 +67,7 @@ defmodule MyAppWeb.Components.StarView.Layout do
     <html lang={@lang} class={@html_class} data-theme={@theme}>
       <head>
         <meta name="csrf-token" content={get_csrf_token()} />
-        <script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.1/bundles/datastar.js" />
+        <script defer type="module" src={~p"/assets/js/app.js"} />
         {render_slot(@head)}
       </head>
       <body {csrf_signal()} {@body_attrs} class={@body_class}>
@@ -101,7 +102,7 @@ def render(assigns) do
   ~H"""
   <Layout.app conn={@conn}>
     <button data-on:click={post("increment")}>+</button>
-    <span data-text="$count">{@count}</span>
+    <span data-text="$count"></span>
   </Layout.app>
   """
 end
@@ -114,3 +115,22 @@ root component so auth screens can center their content vertically.
 Both layouts write the initial signal payload with `init_signals/1`. The
 private root component adds the CSRF token and Datastar script once for the
 full page, and accepts `:theme` for daisyUI-style `data-theme` switching.
+
+## Bundle the client once
+
+Import the locally acquired Datastar ES module from `assets/js/app.js`, or your
+application's public entrypoint:
+
+```javascript
+import "../vendor/datastar.js"
+```
+
+That file is owned by the application and must match its chosen client version
+and license. The SDK provides the server protocol, not licensed Pro assets.
+The installer currently emits a free-client CDN script; remove it when adopting
+this bundled variant so two clients do not initialize the page.
+
+The initial `data-text` node above is empty because Datastar owns its text.
+For meaningful server-rendered content before JavaScript runs, render an ordinary
+HEEx component and patch it by id, as in the
+[complete counter example](../examples/phoenix_counter.md).

@@ -7,7 +7,7 @@ defmodule StarView.FacadeStreamTest do
   alias StarView.TestAssertions
 
   setup do
-    {:ok, _} = start_supervised({Registry, keys: :unique, name: StreamRegistry})
+    start_supervised!(StreamRegistry)
     :ok
   end
 
@@ -21,7 +21,8 @@ defmodule StarView.FacadeStreamTest do
       |> StarView.start_stream(:user_1)
 
     assert conn.state == :chunked
-    assert [{pid, nil}] = Registry.lookup(StreamRegistry, {:user_1, tab_id})
+    assert {:ok, pid, token} = StreamRegistry.owner({:user_1, tab_id})
+    assert is_reference(token)
     assert pid == self()
 
     assert {200, headers, _body} = TestAssertions.chunked_resp(conn)

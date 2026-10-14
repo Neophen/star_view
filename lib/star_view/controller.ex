@@ -114,7 +114,7 @@ defmodule StarView.Controller do
 
     html =
       if is_function(component_or_html, 1) do
-        component_or_html.(conn.assigns)
+        component_or_html.(Map.put_new(conn.assigns, :__changed__, nil))
       else
         component_or_html
       end

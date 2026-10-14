@@ -35,13 +35,13 @@ defmodule StarView.Plug.Dispatch do
 
     with {:ok, module} <- fetch_module(lookup, module_param),
          true <- Code.ensure_loaded?(module) and function_exported?(module, :handle_event, 3),
-         {:ok, signals} <- Signals.read(conn) do
+         {:ok, signals, conn} <- Signals.fetch(conn) do
       conn
       |> maybe_start(start?)
-      |> module.handle_event(event, signals)
+      |> StarView.Dispatch.invoke(module, event, signals, :conn_first)
     else
-      {:error, reason} ->
-        send_error(conn, 400, "Invalid Datastar signals: #{inspect(reason)}")
+      {:error, reason, conn} ->
+        Signals.send_error(conn, reason)
 
       _ ->
         send_error(conn, 404, "Not found")

@@ -112,11 +112,17 @@ defmodule StarView do
   @spec start_stream(Plug.Conn.t(), term()) :: Plug.Conn.t()
   defdelegate start_stream(conn, scope_key), to: StarView.StreamRegistry
 
+  @doc "Starts a keyed SSE stream with configurable signal input options."
+  defdelegate start_stream(conn, scope_key, opts), to: StarView.StreamRegistry
+
   @doc """
   Checks whether a chunked SSE connection still accepts writes.
   """
   @spec check_connection(Plug.Conn.t()) :: {:ok, Plug.Conn.t()} | {:error, Plug.Conn.t()}
   defdelegate check_connection(conn), to: StarView.SSE
+
+  @doc "Fetches object signals and returns Plug's updated conn; see `StarView.Signals.fetch/2`."
+  defdelegate fetch_signals(conn, opts \\ []), to: StarView.Signals, as: :fetch
 
   @doc """
   Reads Datastar signals from a Plug connection.

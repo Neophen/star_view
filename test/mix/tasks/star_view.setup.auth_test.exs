@@ -5,7 +5,7 @@ defmodule Mix.Tasks.StarView.Setup.AuthTest do
 
   test "generates the auth pages and routes for Phoenix projects" do
     igniter =
-      phx_test_project(app_name: :octafest)
+      phoenix_project(app_name: :octafest)
       |> Igniter.compose_task("star_view.setup.auth")
 
     auth_controller = file_content(igniter, "lib/octafest_web/controllers/auth_controller.ex")
@@ -30,26 +30,26 @@ defmodule Mix.Tasks.StarView.Setup.AuthTest do
 
     router = file_content(igniter, "lib/octafest_web/router.ex")
 
-    assert router =~ ~s|get("/auth/sign-in", AuthController, :mount)|
-    assert router =~ ~s|get("/magic_link/:token", Auth.MagicSignIn, :mount)|
-    assert router =~ ~s|post("/magic_link/:token", Auth.MagicSignIn, :submit)|
-    assert router =~ ~s|post("/ds/:module/:event", StarView.Dispatch, [], alias: false)|
+    assert router =~ ~s|get "/auth/sign-in", AuthController, :mount|
+    assert router =~ ~s|get "/magic_link/:token", Auth.MagicSignIn, :mount|
+    assert router =~ ~s|post "/magic_link/:token", Auth.MagicSignIn, :submit|
+    assert router =~ ~s|post "/ds/:module/:event", StarView.Dispatch, [], alias: false|
     refute router =~ "sign_out_route"
-    assert_before(router, "plug(StarView.Plug.RenameCsrfParam)", "plug(:protect_from_forgery)")
+    assert_before(router, "plug StarView.Plug.RenameCsrfParam", "plug(:protect_from_forgery)")
 
     layout = file_content(igniter, "lib/octafest_web/components/star_view/layout.ex")
 
     assert layout =~ "def auth(assigns) do"
-    assert layout =~ "attr(:html_class, :string, default: nil)"
+    assert layout =~ "attr :html_class, :string, default: nil"
 
     web_module = file_content(igniter, "lib/octafest_web.ex")
 
-    assert web_module =~ "def star_view() do"
+    assert web_module =~ ~r/def star_view(?:\(\))? do/
   end
 
   test "replaces ash sign-in routes and adds a sign_out_route" do
     igniter =
-      phx_test_project(app_name: :octafest)
+      phoenix_project(app_name: :octafest)
       |> update_file_content("lib/octafest_web/router.ex", fn content ->
         content
         |> String.replace(
@@ -73,14 +73,14 @@ defmodule Mix.Tasks.StarView.Setup.AuthTest do
     refute router =~ "magic_sign_in_route"
     refute router =~ ~r/(?<![a-z_])sign_in_route/
     assert router =~ ~s|sign_out_route(AuthController)|
-    assert router =~ ~s|get("/auth/sign-in", AuthController, :mount)|
-    assert router =~ ~s|get("/magic_link/:token", Auth.MagicSignIn, :mount)|
-    assert router =~ ~s|post("/magic_link/:token", Auth.MagicSignIn, :submit)|
+    assert router =~ ~s|get "/auth/sign-in", AuthController, :mount|
+    assert router =~ ~s|get "/magic_link/:token", Auth.MagicSignIn, :mount|
+    assert router =~ ~s|post "/magic_link/:token", Auth.MagicSignIn, :submit|
   end
 
   test "patches an existing layout without an auth layout" do
     igniter =
-      phx_test_project(app_name: :octafest)
+      phoenix_project(app_name: :octafest)
       |> Igniter.compose_task("star_view.setup.web_module")
       |> update_file_content(
         "lib/octafest_web/components/star_view/layout.ex",
@@ -92,30 +92,32 @@ defmodule Mix.Tasks.StarView.Setup.AuthTest do
 
     assert layout =~ "def auth(assigns) do"
     assert layout =~ ~s|html_class="h-full bg-base-200"|
-    assert layout =~ "attr(:theme, :string, default: nil)"
-    assert layout =~ "attr(:html_class, :string, default: nil)"
-    assert layout =~ "attr(:body_class, :string, default: nil)"
+    assert layout =~ "attr :theme, :string, default: nil"
+    assert layout =~ "attr :html_class, :string, default: nil"
+    assert layout =~ "attr :body_class, :string, default: nil"
     assert layout =~ "<html lang={@lang} class={@html_class} data-theme={@theme}>"
     assert layout =~ "<body {csrf_signal()} {@body_attrs} class={@body_class}>"
 
     # The auth layout is inserted after `app/1`, so its attrs still belong to
     # `root/1`.
+    assert_top_level_function_order(layout, [:app, :auth])
+    assert_before(layout, "attr :html_class, :string, default: nil", "defp root(assigns) do")
     assert_before(layout, "def app(assigns) do", "def auth(assigns) do")
     assert_before(layout, "def auth(assigns) do", "defp root(assigns) do")
   end
 
   test "is idempotent when run twice" do
     igniter =
-      phx_test_project(app_name: :octafest)
+      phoenix_project(app_name: :octafest)
       |> Igniter.compose_task("star_view.setup.auth")
       |> Igniter.compose_task("star_view.setup.auth")
 
     router = file_content(igniter, "lib/octafest_web/router.ex")
     layout = file_content(igniter, "lib/octafest_web/components/star_view/layout.ex")
 
-    assert count_occurrences(router, ~s|get("/auth/sign-in", AuthController, :mount)|) == 1
+    assert count_occurrences(router, ~s|get "/auth/sign-in", AuthController, :mount|) == 1
 
-    assert count_occurrences(router, ~s|post("/magic_link/:token", Auth.MagicSignIn, :submit)|) ==
+    assert count_occurrences(router, ~s|post "/magic_link/:token", Auth.MagicSignIn, :submit|) ==
              1
 
     assert count_occurrences(layout, "def auth(assigns) do") == 1
@@ -173,13 +175,30 @@ defmodule Mix.Tasks.StarView.Setup.AuthTest do
     """
   end
 
+  defp phoenix_project(opts) do
+    # Igniter's applied virtual fixtures load lazily; make router discovery
+    # start from the same complete source set as a new Phoenix project.
+    opts |> phx_test_project() |> load_fixture_files()
+  end
+
+  defp load_fixture_files(igniter) do
+    Enum.reduce(
+      Map.keys(igniter.assigns.test_files),
+      igniter,
+      &Igniter.include_existing_file(&2, &1)
+    )
+  end
+
   defp file_content(igniter, path) do
+    igniter = Igniter.include_existing_file(igniter, path)
+
     igniter.rewrite
     |> Rewrite.source!(path)
     |> Rewrite.Source.get(:content)
   end
 
   defp update_file_content(igniter, path, fun) do
+    igniter = Igniter.include_existing_file(igniter, path)
     source = Rewrite.source!(igniter.rewrite, path)
     content = Rewrite.Source.get(source, :content)
     source = Igniter.update_source(source, igniter, :content, fun.(content))
@@ -192,6 +211,19 @@ defmodule Mix.Tasks.StarView.Setup.AuthTest do
     |> String.split(substring)
     |> length()
     |> Kernel.-(1)
+  end
+
+  defp assert_top_level_function_order(source, expected) do
+    {:defmodule, _meta, [_module, [do: {:__block__, _, statements}]]} =
+      Code.string_to_quoted!(source)
+
+    functions =
+      statements
+      |> Enum.filter(&match?({:def, _, [_head, _body]}, &1))
+      |> Enum.map(fn {:def, _, [{name, _, _args}, _body]} -> name end)
+      |> Enum.filter(&(&1 in expected))
+
+    assert functions == expected
   end
 
   defp assert_before(source, first, second) do

@@ -213,12 +213,16 @@ Most Phoenix controller events should use the `signals` argument passed to
 `handle_event/3`. Lower-level Plug code can read the same payload manually:
 
 ```elixir
-signals = StarView.read_signals(conn)
+{:ok, signals, conn} = StarView.fetch_signals(conn)
 ```
 
 `GET` and `DELETE` requests read the `datastar` query parameter. Other methods
 read JSON from the request body unless Plug parsers have already populated
-`conn.body_params`.
+`conn.body_params`. Raw body and query JSON are limited to 1,000,000 bytes by
+default (`max_bytes:` overrides this in `fetch_signals/2`). Non-object JSON is
+rejected. Always thread the fetched conn; `read_signals/1` is retained for callers
+that already parsed their input. Configure `Plug.Parsers` to bound parsed bodies
+too, since the original byte size is unavailable after parsing.
 
 ## Raw Patches And Removal
 

@@ -19,13 +19,18 @@ signal. Function components can read the assign, while the browser receives the
 signal during the initial render or immediately during an SSE event.
 
 ```elixir
-def handle_event("increment", signals, conn) do
+def handle_event("increment", %{"count" => count}, %{method: "POST"} = conn)
+    when is_integer(count) and count >= 0 and count < 1_000_000 do
   conn
-  |> assign(:computed_value, expensive_calculation(signals))
-  |> signal(:count, signals["count"] + 1)
-  |> patch_element(&history_item/1, to: "history-list", mode: :append)
+  |> Plug.Conn.assign(:label, "Count")
+  |> signal(:count, count + 1)
+  |> patch_element(&summary/1)
 end
 ```
+
+The submitted count is UI state in this example, not an authorized persisted
+record. The [complete counter guide](../examples/phoenix_counter.md) includes
+its component, initial render, and invalid-input path.
 
 ## Dispatch Flow
 
@@ -34,8 +39,8 @@ controller handles the event and returns the updated connection:
 
 ```elixir
 @impl StarView
-def handle_event("increment", signals, conn) do
-  signal(conn, :count, Map.get(signals, "count", 0) + 1)
+def handle_event("refresh", _signals, conn) do
+  signal(conn, :refresh_complete, true)
 end
 ```
 
@@ -48,3 +53,24 @@ controllers.
 Start with the installation guide, then add the Phoenix web module section and
 routes. Once the app is running, the core guides cover `patch_signals/3`,
 `patch_element/3`, and optional per-tab stream deduplication.
+
+## Choose the rendering and state boundary
+
+Default to server-rendered HEEx with ordinary Datastar signals for form values,
+visibility, and small reactive controls. A widget that owns timers, drag state,
+external browser integrations, or repeated independent instances may benefit
+from [Rocket](https://data-star.dev/reference/rocket), Datastar's beta custom-element
+API with scoped client state and lifecycle hooks.
+
+This is an application design choice: use props for the widget's public inputs
+and local state for its internal interaction. Keep business writes and policies
+on the server. Check the exact Rocket client you bundle before adopting its beta
+API; StarView's release does not establish a Rocket version or supply its assets.
+
+These guides use `Phoenix.Component` plus the released StarView controller,
+protocol, and stream APIs. v0.4.0 does not include `StarView.Component` or the
+unfinished Page/Component/Router abstractions from experimental checkouts.
+
+For concrete workflows, read the [manual Plug endpoint](../examples/plug_endpoints.md),
+[PubSub stream](../examples/pubsub_stream.md), [safe action](../core/actions.md),
+and [troubleshooting](../reference/troubleshooting.md) guides.

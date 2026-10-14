@@ -34,7 +34,32 @@ defmodule StarView.ScriptsTest do
   end
 
   test "escapes closing script tags case-insensitively" do
-    assert Scripts.format_execute("document.body.innerHTML = '</SCRIPT>'") =~ "<\\/script>"
+    assert Scripts.format_execute("document.body.innerHTML = '</SCRIPT>'") =~ "<\\/SCRIPT>"
+
+    assert Scripts.format_execute("'</ScRiPt >' + '</SCRIPT/'") =~
+             "'<\\/ScRiPt >' + '<\\/SCRIPT/'"
+  end
+
+  test "attribute names cannot break out of the script tag" do
+    Enum.each(["on>load", ~s|x" onload="evil()|, "a b", "on\tload"], &assert_invalid_attribute/1)
+  end
+
+  defp assert_invalid_attribute(name) do
+    assert_raise ArgumentError, fn ->
+      Scripts.format_execute("1", attributes: %{name => "value"})
+    end
+  end
+
+  test "bare attributes are names and values use tuple or map attributes" do
+    assert_raise ArgumentError, fn ->
+      Scripts.format_execute("1", attributes: [~s(type="module")])
+    end
+
+    assert Scripts.format_execute("1",
+             auto_remove: false,
+             attributes: [{"data-on:click", "doIt()"}, {"nonce", "abc"}, "defer"]
+           ) =~
+             ~s|<script data-on:click="doIt()" nonce="abc" defer>1</script>|
   end
 
   test "includes custom script attributes when provided" do
