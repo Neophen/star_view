@@ -29,6 +29,17 @@ defmodule StarView.TemplateTest.Components do
     """
   end
 
+  def optional_slot_page(assigns) do
+    ~STAR"""
+    <main id="content">
+      <.card title={@title}>
+        <p>Content</p>
+        <:actions :let={label} :if={@shown}><button id="action">{label}</button></:actions>
+      </.card>
+    </main>
+    """
+  end
+
   def counter(assigns) do
     ~STAR"""
     <main id="content">

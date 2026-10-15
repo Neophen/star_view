@@ -133,7 +133,7 @@ defmodule StarView.TemplateCompilerTest do
 
   test "unsupported constructs fail during compilation" do
     examples = [
-      {:Case, "<%= case @value do %><% true -> %>yes<% end %>"},
+      {:With, "<%= with true <- @value do %>yes<% end %>"},
       {:Statement, "<% value = @value %>{value}"},
       {:Macro, "<div :type={Some.Macro}>hello</div>"},
       {:RepeatedSlot,

@@ -59,7 +59,11 @@ defmodule StarView.Template.HTML do
   # HEEx encodes `class` and `style` itself and always emits them.
   defp dynamic("class", value), do: [~s( class="), class_value(value), ?"]
   defp dynamic("style", value), do: [~s( style="), empty_value(value), ?"]
-  defp dynamic(name, value), do: name |> expand(value) |> Enum.map(&pair/1)
+
+  defp dynamic(name, value) when name in @nested_prefixes and is_list(value),
+    do: name |> nested(value) |> Enum.map(&pair/1)
+
+  defp dynamic(name, value), do: encoded_pair(name, value)
 
   defp spread_entry({key, value}), do: expand(spread_key!(key), value)
 
@@ -85,8 +89,20 @@ defmodule StarView.Template.HTML do
     do: raise(ArgumentError, "a StarView.Template cannot be used as an attribute value")
 
   defp pair({name, value}) do
+    encoded_pair(attribute_name!(name), value)
+  end
+
+  defp encoded_pair(_name, %StarView.Template{}),
+    do: raise(ArgumentError, "a StarView.Template cannot be used as an attribute value")
+
+  defp encoded_pair(_name, value) when value in [nil, false], do: []
+  defp encoded_pair(name, true), do: [?\s, name]
+
+  defp encoded_pair(name, value) when is_binary(value), do: [?\s, name, ?=, ?", escape(value), ?"]
+
+  defp encoded_pair(name, value) do
     Runtime.reject_legacy!(value)
-    {:safe, iodata} = phoenix_html!(:attributes_escape, [[{attribute_name!(name), value}]])
+    {:safe, iodata} = phoenix_html!(:attributes_escape, [[{name, value}]])
     iodata
   end
 
@@ -112,8 +128,8 @@ defmodule StarView.Template.HTML do
       )
 
   @doc false
-  def attribute_name!(name) when is_binary(name) do
-    if !Regex.match?(@attribute_name, name) do
+  def attribute_name!(name) when is_binary(name) and byte_size(name) > 0 do
+    if !valid_attribute_name?(name, ascii_attribute_name?(name)) do
       raise ArgumentError, "invalid attribute name: #{inspect(name)}"
     end
 
@@ -121,6 +137,20 @@ defmodule StarView.Template.HTML do
   end
 
   def attribute_name!(name), do: raise(ArgumentError, "invalid attribute name: #{inspect(name)}")
+
+  # Almost every rendered name is ASCII. Avoid entering the regular expression
+  # engine for each attribute while preserving its Unicode/invalid-UTF8 rules.
+  defp ascii_attribute_name?(<<>>), do: true
+
+  defp ascii_attribute_name?(<<character, rest::binary>>)
+       when character in 33..126 and character not in ~c"\"'<>/=`&",
+       do: ascii_attribute_name?(rest)
+
+  defp ascii_attribute_name?(<<character, _rest::binary>>) when character < 128, do: false
+  defp ascii_attribute_name?(_name), do: :unicode
+
+  defp valid_attribute_name?(name, :unicode), do: Regex.match?(@attribute_name, name)
+  defp valid_attribute_name?(_name, valid?), do: valid?
 
   defp class_value(list) when is_list(list),
     do: list |> class_list([]) |> IO.iodata_to_binary() |> escape()
@@ -142,7 +172,8 @@ defmodule StarView.Template.HTML do
   defp class_name(value), do: value |> Runtime.reject_legacy!() |> to_string()
 
   defp phoenix_html!(function, args) do
-    if !Code.ensure_loaded?(Phoenix.HTML) do
+    if !function_exported?(Phoenix.HTML, function, length(args)) and
+         !Code.ensure_loaded?(Phoenix.HTML) do
       raise "StarView.Template needs the :phoenix_html dependency (included with " <>
               ":phoenix_live_view) to render dynamic values and attributes"
     end

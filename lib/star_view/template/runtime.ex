@@ -18,12 +18,13 @@ defmodule StarView.Template.Runtime do
   end
 
   def component(fun, assigns, meta) do
-    result =
-      fun.(Map.put_new(assigns, :__changed__, nil))
-      |> native_template!("component #{inspect(fun)}")
+    result = fun.(Map.put_new(assigns, :__changed__, nil)) |> component_result!(fun)
 
     %Node{kind: :component, value: result, meta: meta}
   end
+
+  defp component_result!(%Template{} = template, _fun), do: template
+  defp component_result!(other, fun), do: native_template!(other, "component #{inspect(fun)}")
 
   def native_template!(%Template{} = template, _origin), do: template
 

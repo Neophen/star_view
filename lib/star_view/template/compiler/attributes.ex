@@ -33,6 +33,10 @@ defmodule StarView.Template.Compiler.Attributes do
   end
 
   defp directive?({":" <> _, _, _}), do: true
+
+  defp directive?({name, _, _}) when name in ~w(phx-no-format phx-no-curly-interpolation),
+    do: true
+
   defp directive?(_attribute), do: false
 
   defp validate_attribute!({":" <> _ = name, _, meta}, context, allowed) do
