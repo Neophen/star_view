@@ -1,6 +1,6 @@
 # Agent skill
 
-This source checkout includes a portable skill, bundled when building its Hex package, at
+StarView 0.6.0 includes a portable skill in its source checkout and Hex package at
 `skills/datastar/`. Copy the **whole folder**, including `references/`, into
 your agent's skill directory. The skill uses ordinary `SKILL.md` frontmatter
 and Markdown; it does not require a specific model, MCP server or credentials.
@@ -39,6 +39,5 @@ instructions. The shared skill contains no application credentials or
 application-specific configuration. Update it alongside API changes so a
 copied version explains the guarantees of its matching SDK.
 
-The bundled skill and checked-event additions are not in the published 0.5.0
-package. Until released, use this source branch rather than assuming that
-`{:star_view, "~> 0.5.0"}` includes them.
+The bundled skill and checked-event additions require StarView 0.6.0 or later.
+Use `{:star_view, "~> 0.6.0"}` for this release; they are absent from 0.5.0.

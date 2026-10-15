@@ -121,5 +121,5 @@ shape, not the named event or HTTP method. Avoiding cross-module and router
 compile dependencies keeps incremental compilation and ordinary module cycles
 predictable.
 
-These additions are unreleased and are not present in StarView 0.5.0. Native
+Checked events were added in StarView 0.6.0 and are absent from 0.5.0. Native
 `~STAR` also has its own [experimental compiler requirements](../examples/star_templates.md).

@@ -86,7 +86,7 @@ Only pass developer-authored code to `:opts`; encode dynamic literal values with
 Check the emitted expression in integration tests.
 
 Keep mutation retries separate from read-stream reconnection. Verify the pinned
-Datastar client's behavior: Octafest's vendored Pro 1.0.4 transport was verified
+Datastar client's behavior: a vendored Datastar Pro 1.0.4 transport was verified
 with a failing-fetch test and needs
 `retryMaxCount: 0` as well as `retry: 'never'` to prevent network-error retries.
 Use an explicit payload or `filterSignals` to send only the operation's inputs,

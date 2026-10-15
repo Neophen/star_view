@@ -7,7 +7,7 @@ elements, values, branches, collections and components. It does not wrap a
 
 This is the first compiler proof, not a new page process or a complete HEEx
 replacement. Existing StarView controllers and Page APIs are unchanged.
-Published StarView 0.5.0 does not include this experimental API.
+This experimental API was added in StarView 0.6.0 and is absent from 0.5.0.
 
 ## Render and compare
 

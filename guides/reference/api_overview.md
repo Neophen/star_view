@@ -25,7 +25,7 @@ StarView.console_log(conn, "debug")
 StarView.read_signals(conn)
 ```
 
-The upcoming release also supports optional `:render`, `:render_interval` and
+StarView 0.6.0 also supports optional `:render`, `:render_interval` and
 `:render_on_connect` on `StarView.Stream.run/2`, with `StarView.invalidate/1`
 to request a coalesced refresh. `c:StarView.Page.handle_refresh/1` uses the same
 loop. Keyed `only_changed: true` element patches can skip identical output

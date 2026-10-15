@@ -87,5 +87,6 @@ The legacy conn-first `StarView.Plug.Dispatch` is outside this opt-in integratio
 
 Read `guides/core/checked_events.md` and cover handler renames/removal, method
 changes, fallbacks and compiler error locations when changing this mechanism.
-The native compiler and checked-event additions are not in published 0.5.0;
-verify source/API availability before recommending them to an installed app.
+The experimental native compiler and checked events were added in 0.6.0 and
+are absent from 0.5.0. Verify source/API availability before recommending them
+to an installed app.

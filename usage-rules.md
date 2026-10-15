@@ -72,7 +72,7 @@ requires the tested LiveView 1.2.12 parser adapter. It is native-only: convert
 called components and slots too; legacy HEEx values raise conversion errors.
 Snapshots can render HTML or plan selected element patches, but all bindings
 still evaluate on each render. See [STAR templates](guides/examples/star_templates.md)
-before using the opt-in experiment; it is not part of v0.5.0.
+before using the opt-in experiment, added in v0.6.0.
 
 `checked_events: true` on controller/page/component entrypoints derives a
 contract from final `handle_event/3` clauses. Use literal names and a literal
