@@ -38,6 +38,24 @@ defmodule StarView.Page.HelpersTest do
     assert_raise ArgumentError, fn -> connect(opts: %{}) end
   end
 
+  test "read-stream reconnect policy is opt-in and preserves custom fetch options" do
+    assert connect(retry: :always) =~ ~S|{...({retryMaxCount: 64}), retry: "always"})|
+    assert connect(retry: :auto) =~ ~S|{...({retryMaxCount: 64}), retry: "auto"})|
+
+    assert connect(retry: :always, opts: "{retryMaxCount: 5}") =~
+             ~S|{...({retryMaxCount: 5}), retry: "always"})|
+
+    assert connect(retry: :error, opts: "{retryMaxCount: 3, openWhenHidden: false}") =~
+             ~S|{...({retryMaxCount: 3, openWhenHidden: false}), retry: "error"})|
+
+    assert connect(retry: :never, include_search: true) =~
+             ~S| + location.search, {...({retryMaxCount: 0}), retry: "never"})|
+
+    assert_raise ArgumentError, fn -> connect(retry: :invalid) end
+    assert_raise ArgumentError, fn -> connect(retry: "always") end
+    assert_raise ArgumentError, fn -> connect(retry: :always, opts: %{}) end
+  end
+
   test "component patches add change tracking and pass selector options" do
     conn =
       conn(:post, "/")

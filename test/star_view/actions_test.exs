@@ -26,6 +26,42 @@ defmodule StarView.ActionsTest do
     assert action =~ ~s(+ "/increment")
   end
 
+  test "every controller action preserves fetch options" do
+    for verb <- [:get, :post, :put, :patch, :delete] do
+      action =
+        apply(Actions, verb, [
+          PageController,
+          "save",
+          [opts: "{retry: 'never', retryMaxCount: 0}"]
+        ])
+
+      assert action ==
+               "@#{verb}(\"/ds/star_view-test_handlers-page_controller/save\", {retry: 'never', retryMaxCount: 0})"
+    end
+  end
+
+  test "dynamic actions preserve fetch options and URL encoding together" do
+    action =
+      Actions.post("save/name", prefix: "/admin", opts: "{requestCancellation: controller}")
+
+    assert action =~ ~s("/admin/ds/")
+    assert action =~ "encodeURIComponent(segment)"
+    assert action =~ ~s(+ "/save%2Fname", {requestCancellation: controller})
+
+    assert Actions.post("save", module: "literal/name", opts: "{payload: {csrf: $csrf}}") ==
+             ~S|@post("/ds/literal%2Fname/save", {payload: {csrf: $csrf}})|
+  end
+
+  test "fetch options reject values that are not trusted JavaScript text" do
+    assert_raise ArgumentError, ":opts must be trusted JavaScript text", fn ->
+      Actions.post(PageController, "save", opts: %{})
+    end
+
+    assert_raise ArgumentError, ":opts must be trusted JavaScript text", fn ->
+      Actions.post("save", opts: [])
+    end
+  end
+
   test "encodes special event values as one literal route segment" do
     event = "save/'\\?%#\nč."
     action = Actions.post(PageController, event)

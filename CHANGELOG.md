@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Optional coalesced rendering on the existing stream loop: `:render`,
+  `:render_interval`, `:render_on_connect` and `StarView.invalidate/1`.
+  `StarView.Page.handle_refresh/1` exposes the same lifecycle with
+  `:refresh_interval`. Connections take a fresh snapshot after subscribing.
+- Opt-in keyed `only_changed: true` element patches compare SHA-256 digests
+  within a stream, with bounded tracking and a fresh comparison on reconnect.
+- Explicit `connect(retry: ...)` policy for pages, preserving the existing
+  default. `:always` opts into reconnecting clean stream endings; `:never`
+  also sets a zero retry count for clients that retry network errors separately.
+- A Phoenix/backend mental-model guide and reactive rendering example,
+  crediting Jacob O'Bryant's article and Biff's Datastar implementation.
+
+### Fixed
+
+- Controller `StarView.Actions` helpers now preserve trusted JavaScript `:opts`,
+  matching page/component event helpers. Fetch cancellation, payload filters
+  and retry options are emitted rather than silently ignored.
+- Stream identity examples use a document UUID rather than a copied
+  session-storage ID, avoiding accidental replacement between duplicated tabs.
+
 ## v0.5.0
 
 ### Added
@@ -386,7 +410,7 @@ URL, stream ownership, and CSRF improvements adapt concepts from dstar (MIT).
   `star_view.setup.web_module`, `star_view.setup.search_controller`) for
   better modularity and independent invocation.
 
-## Unreleased
+## Early development notes
 
 ### Added
 

@@ -12,14 +12,20 @@ children = [
 ]
 ```
 
-Keep the tab id in `sessionStorage` so it survives navigation within one tab:
+Initialize a public id once per document, outside the root you refresh:
 
 ```heex
-<body data-signals:tab-id="sessionStorage.getItem('_sv_tab') || (() => { const id = crypto.randomUUID(); sessionStorage.setItem('_sv_tab', id); return id; })()">
+<body data-signals:tab-id__ifmissing="crypto.randomUUID()">
 ```
 
 Use `tab-id` in the attribute: HTML lowercases `tabId`, while Datastar camelizes
 hyphenated names. Avoid an underscore prefix, which keeps the signal client-only.
+The id remains stable across stream reconnects in this document. A full reload
+gets a new id, and the old connection ends through disconnect detection. Avoid
+using a blindly copied `sessionStorage` id: duplicated tabs inherit that storage
+and can replace each other's streams. Persistent tab state needs an explicit
+application identity/expiry policy; the registry does not provide storage or
+authorize access to a resource.
 
 Prefer the library-owned loop:
 

@@ -25,6 +25,13 @@ StarView.console_log(conn, "debug")
 StarView.read_signals(conn)
 ```
 
+The upcoming release also supports optional `:render`, `:render_interval` and
+`:render_on_connect` on `StarView.Stream.run/2`, with `StarView.invalidate/1`
+to request a coalesced refresh. `c:StarView.Page.handle_refresh/1` uses the same
+loop. Keyed `only_changed: true` element patches can skip identical output
+for regions exclusively owned by that stream. See
+[reactive rendering](../examples/reactive_rendering.md) for the ownership limits.
+
 For Phoenix controller helpers, see `StarView.Controller` and
 `StarView.Dispatch`.
 

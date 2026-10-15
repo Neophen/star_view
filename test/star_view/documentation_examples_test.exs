@@ -10,6 +10,7 @@ defmodule StarView.DocumentationExamplesTest do
   alias StarView.DocumentationWeb.CounterStreamController
   alias StarView.DocumentationWeb.DashboardPage
   alias StarView.DocumentationWeb.DetailDrawer
+  alias StarView.DocumentationWeb.OrdersPage
   alias StarView.SSE.TransportError
   alias StarView.TestAssertions
   alias StarView.TransportAdapter
@@ -20,6 +21,7 @@ defmodule StarView.DocumentationExamplesTest do
     compile_example("guides/examples/phoenix_counter.md", "MyAppWeb.CounterController")
     compile_example("guides/examples/plug_endpoints.md", "MyApp.RawCounterEndpoint")
     compile_example("guides/examples/pubsub_stream.md", "MyAppWeb.CounterStreamController")
+    compile_example("guides/examples/reactive_rendering.md", "MyAppWeb.OrdersPage")
     compile_example("guides/core/actions.md", "MyAppWeb.CounterButton")
     compile_example("guides/phoenix/pages.md", "MyAppWeb.CounterPage")
     compile_example("guides/phoenix/pages.md", "MyAppWeb.DashboardPage")
@@ -39,6 +41,28 @@ defmodule StarView.DocumentationExamplesTest do
     assert {200, _headers, body} = TestAssertions.chunked_resp(result)
     assert body =~ ~s(data: signals {"count":3})
     assert body =~ "Count: 3</output>"
+  end
+
+  test "reactive page example renders backend data and stops a forbidden refresh" do
+    scope = %{organization: %{id: "festival"}, orders: [%{id: "one", number: "Order 1"}]}
+    conn = conn(:post, "/orders") |> Plug.Conn.assign(:current_scope, scope)
+    initial = apply(OrdersPage, :mount, [conn, %{}])
+    assigns = initial.assigns |> Map.put(:conn, initial) |> Map.put(:__changed__, nil)
+    html = OrdersPage |> apply(:render, [assigns]) |> html_string()
+    assert html =~ "Order 1"
+    assert html =~ "data-init="
+
+    streaming = StarView.start(conn)
+    updated = apply(OrdersPage, :handle_refresh, [streaming])
+    StarView.Test.assert_patched_element(updated, "#orders")
+
+    forbidden = Plug.Conn.assign(streaming, :current_scope, %{allowed?: false})
+    assert {:halt, ^forbidden} = apply(OrdersPage, :handle_refresh, [forbidden])
+
+    denied_request = Plug.Conn.assign(conn, :current_scope, %{allowed?: false})
+    denied = apply(OrdersPage, :mount, [denied_request, %{}])
+    assert denied.status == 403
+    assert denied.halted
   end
 
   test "counter guards reject client counts without changing count or patching the summary" do

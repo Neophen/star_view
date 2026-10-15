@@ -152,11 +152,23 @@ defmodule MyAppWeb.DashboardPage do
 end
 ```
 
-`connect/0,1` opens POST streaming with unlimited reconnect attempts by default.
+`connect/0,1` opens POST streaming with unlimited network-error retries by default.
 Use `include_search: true` to carry query parameters to `handle_connect/2`.
+The existing default uses Datastar's automatic retry policy; clean server closes
+remain terminal. Use `connect(retry: :always)` for a read resource that should
+reconnect after a successful stream closes, with 64 consecutive failed attempts
+by default. Use the same expression on `data-on:online__window` if the page must
+recover when network access returns. A deliberate `{:halt, conn}` also reconnects
+under `:always`; choose the policy to match the page's lifecycle.
 The library fetches signals and starts SSE before connect. It probes on a fixed
 `:idle_check` deadline, even during busy PubSub traffic. Closed/reset writes end
 normally; timeouts and application exceptions propagate.
+
+For a stream that reloads and renders current authorized state, define optional
+`handle_refresh/1` and call `StarView.invalidate(conn)` from `handle_info/2`.
+The loop takes a snapshot after subscribing and coalesces pending invalidations.
+The page's `:refresh_interval` sets a minimum interval between render starts.
+See [reactive rendering](../examples/reactive_rendering.md) for the full example.
 
 Return `{:halt, conn}` to end normally. Unmatched `handle_info/2` callback heads
 are logged and ignored; errors inside a matched clause propagate. You can omit

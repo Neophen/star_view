@@ -43,8 +43,8 @@ Raw/query signals default to 1,000,000 bytes and must be JSON objects. The
 compatibility `StarView.read_signals/1` returns a map and raises on errors.
 
 Use `Actions` for controller URLs and `event/2` for page/component URLs.
-Helpers encode literal path segments and JavaScript strings. `:opts` on the
-page/component helper is trusted developer JavaScript emitted verbatim; never
+Helpers encode literal path segments and JavaScript strings. `:opts` on action
+and page/component helpers is trusted developer JavaScript emitted verbatim; never
 assemble it from submitted signals. Use `StarView.JSON.encode!/1` for literal
 values in custom expressions, and let HEEx escape HTML attributes.
 
@@ -72,6 +72,24 @@ StarView `Layout.app/1` owns the document; mount can explicitly select a Phoenix
 root layout instead. Bundled client assets remain the application's job.
 
 ## Streams and cleanup
+
+An optional `:render` callback on `Stream.run/2` (page `handle_refresh/1`)
+re-reads authorized state after `StarView.invalidate/1`. Subscribe before the
+initial snapshot; publish scoped invalidations after a successful commit.
+Use `:render_interval` (page `:refresh_interval`) to coalesce bursts, and keep
+renders bounded so probes and takeover remain responsive. This is opt-in;
+ordinary events can patch their region directly.
+
+Use keyed `only_changed: true` only for idempotent patches to independently
+owned regions. It compares this stream's emitted HTML and patch options, not
+the browser's final DOM or changes made by other requests. Reconnects start
+with no fingerprints. See [reactive rendering](guides/examples/reactive_rendering.md).
+
+The page `connect()` default is unchanged. `connect(retry: :always)` also
+reconnects deliberate clean halts: choose it only for appropriate read streams.
+Mutation retries need application idempotency. Verify generated expressions
+and the bundled client's retry behavior; `retry: 'never'` alone may not disable
+network retries, whereas `retryMaxCount: 0` bounds them.
 
 Prefer the shared `StarView.Stream.open/2` and `run/2` lifecycle for manual
 streams. Pages call it for `handle_connect/2` and `handle_info/2`; do not build

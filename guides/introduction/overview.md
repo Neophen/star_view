@@ -67,9 +67,14 @@ and local state for its internal interaction. Keep business writes and policies
 on the server. Check the exact Rocket client you bundle before adopting its beta
 API; StarView's release does not establish a Rocket version or supply its assets.
 
-These guides use `Phoenix.Component` plus the released StarView controller,
-protocol, and stream APIs. v0.4.0 does not include `StarView.Component` or the
-unfinished Page/Component/Router abstractions from experimental checkouts.
+The optional `StarView.Page`, `StarView.Component` and `StarView.Router` APIs
+are available alongside existing controllers. Use the integration that fits
+the application's rendering boundary; adopting Datastar does not require
+rewriting its backend or controller pages.
+
+Read [Thinking in Phoenix, Datastar and StarView](mental_model.md) for the
+request, state and backend model, including the ideas we took from Jacob
+O'Bryant's Biff implementation.
 
 For concrete workflows, read the [manual Plug endpoint](../examples/plug_endpoints.md),
 [PubSub stream](../examples/pubsub_stream.md), [safe action](../core/actions.md),

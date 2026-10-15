@@ -11,6 +11,8 @@ if Code.ensure_loaded?(Phoenix.Controller) do
     own operation. Mount is not called for events or stream connections.
     `handle_disconnect/1`, when defined, runs once after stream claim release,
     including raised callbacks. It receives the latest completed callback conn.
+    `handle_refresh/1`, when defined, becomes the stream's coalesced `:render`
+    callback with the page's `:refresh_interval`.
 
     Set `config :star_view, debug_errors: true` in development to relay event
     exceptions to the browser console. Production should leave this disabled.
@@ -23,6 +25,7 @@ if Code.ensure_loaded?(Phoenix.Controller) do
     alias StarView.Signals
     alias StarView.SSE.TransportError
     alias StarView.Stream
+    alias StarView.Stream.RenderState
 
     require Logger
 
@@ -121,24 +124,33 @@ if Code.ensure_loaded?(Phoenix.Controller) do
 
     defp run_lifecycle(conn, page, key) do
       outcome = stream_outcome(conn, page, key)
-      conn = Process.delete(key)
+      conn = key |> Process.delete() |> RenderState.clear()
       complete(outcome, page, conn)
     end
 
     defp stream_outcome(conn, page, key) do
-      result =
-        Stream.run(conn,
-          connect: &connect(&1, page, key),
-          info: &info(&1, &2, page, key),
-          idle_check: page.__star_view__(:idle_check)
-        )
-
-      {:ok, result}
+      {:ok, Stream.run(conn, run_options(page, key))}
     rescue
       exception -> {:raised, :error, exception, __STACKTRACE__}
     catch
       kind, reason -> {:raised, kind, reason, __STACKTRACE__}
     end
+
+    defp run_options(page, key) do
+      [
+        connect: &connect(&1, page, key),
+        info: &info(&1, &2, page, key),
+        idle_check: page.__star_view__(:idle_check)
+      ] ++ refresh_options(page, key)
+    end
+
+    defp refresh_options(page, key) do
+      if exported?(page, :handle_refresh, 1),
+        do: [render: &refresh(&1, page, key), render_interval: refresh_interval(page)],
+        else: []
+    end
+
+    defp refresh_interval(page), do: page.__star_view__(:refresh_interval)
 
     defp complete({:ok, result}, page, conn) do
       disconnect(page, conn)
@@ -171,6 +183,10 @@ if Code.ensure_loaded?(Phoenix.Controller) do
 
     defp info(message, conn, page, key) do
       page |> dispatch_info(message, conn) |> remember(key)
+    end
+
+    defp refresh(conn, page, key) do
+      page |> invoke(:handle_refresh, [conn]) |> remember(key)
     end
 
     defp remember(%Conn{} = conn, key) do
