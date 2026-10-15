@@ -40,6 +40,10 @@ for the controller/backend model and the inspiration from Jacob O'Bryant's Biff.
 The upcoming release adds optional [coalesced reactive rendering](guides/examples/reactive_rendering.md)
 to the existing stream lifecycle; these additions are not in v0.5.0.
 
+The separate experimental [STAR template compiler](guides/examples/star_templates.md)
+uses `~STAR` and a StarView-owned tree for initial HTML and selected element
+patches. It currently requires the tested LiveView 1.2.12 parser adapter.
+
 A short Phoenix event looks like this:
 
 ```elixir

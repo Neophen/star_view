@@ -22,6 +22,7 @@ defmodule StarView.DocumentationExamplesTest do
     compile_example("guides/examples/plug_endpoints.md", "MyApp.RawCounterEndpoint")
     compile_example("guides/examples/pubsub_stream.md", "MyAppWeb.CounterStreamController")
     compile_example("guides/examples/reactive_rendering.md", "MyAppWeb.OrdersPage")
+    compile_example("guides/examples/star_templates.md", "MyAppWeb.CounterTemplate")
     compile_example("guides/core/actions.md", "MyAppWeb.CounterButton")
     compile_example("guides/phoenix/pages.md", "MyAppWeb.CounterPage")
     compile_example("guides/phoenix/pages.md", "MyAppWeb.DashboardPage")

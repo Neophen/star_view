@@ -87,6 +87,7 @@ defmodule StarView.MixProject do
       "guides/examples/plug_endpoints.md",
       "guides/examples/pubsub_stream.md",
       "guides/examples/reactive_rendering.md",
+      "guides/examples/star_templates.md",
       "guides/reference/api_overview.md",
       "guides/reference/migration_from_dstar.md",
       "guides/reference/troubleshooting.md",
@@ -108,6 +109,13 @@ defmodule StarView.MixProject do
 
   defp groups_for_modules() do
     [
+      "Experimental templates": [
+        StarView.Template,
+        StarView.Template.Node,
+        StarView.Template.Patch,
+        StarView.Template.Sigils,
+        StarView.Template.Formatter
+      ],
       Core: [
         StarView,
         StarView.SSE,
