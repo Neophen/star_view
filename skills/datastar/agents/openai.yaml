@@ -1,0 +1,6 @@
+interface:
+  display_name: "Datastar and StarView"
+  short_description: "Build server-rendered Datastar and Rocket interfaces"
+  default_prompt: "Use $datastar to build or review this interface with Datastar, StarView and Rocket."
+policy:
+  allow_implicit_invocation: true

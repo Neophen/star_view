@@ -48,7 +48,7 @@ defmodule StarView.MixProject do
         "Datastar" => "https://data-star.dev"
       },
       files:
-        ~w(assets lib priv guides mix.exs README.md CHANGELOG.md LICENSE usage-rules.md .formatter.exs)
+        ~w(assets lib priv guides skills mix.exs README.md CHANGELOG.md LICENSE usage-rules.md .formatter.exs)
     ]
   end
 
@@ -71,6 +71,7 @@ defmodule StarView.MixProject do
       "guides/introduction/overview.md",
       "guides/introduction/mental_model.md",
       "guides/introduction/installation.md",
+      "guides/introduction/agent_skill.md",
       "guides/phoenix/web_module.md",
       "guides/phoenix/layout.md",
       "guides/phoenix/auth.md",
@@ -79,6 +80,7 @@ defmodule StarView.MixProject do
       "guides/phoenix/compression.md",
       "guides/core/patch_signals.md",
       "guides/core/actions.md",
+      "guides/core/checked_events.md",
       "guides/core/patch_element.md",
       "guides/core/stream_deduplication.md",
       "guides/core/csrf.md",
@@ -117,6 +119,7 @@ defmodule StarView.MixProject do
         StarView.Template.Formatter
       ],
       Core: [
+        StarView.Events,
         StarView,
         StarView.SSE,
         StarView.Elements,

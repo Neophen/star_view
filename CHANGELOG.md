@@ -4,6 +4,11 @@
 
 ### Added
 
+- Portable Datastar/StarView/Rocket agent skill bundled in `skills/datastar`,
+  with copying instructions for Codex, Claude Code and other skill-capable agents.
+- Opt-in `checked_events: true` derives event registration from final public
+  handler clauses, checks literal local request helpers in `~STAR`, and rejects
+  unknown names or wrong methods before SSE with HTTP 404/405.
 - Experimental `~STAR` compiler and a StarView-owned template/node representation
   with initial HTML rendering and conservative HTML patch planning. The adapter
   is gated to Phoenix LiveView 1.2.12; no new page process or dependency upgrade.

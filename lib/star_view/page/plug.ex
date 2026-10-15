@@ -74,9 +74,12 @@ if Code.ensure_loaded?(Phoenix.Controller) do
       conn = Conn.fetch_query_params(conn)
       event = Map.fetch!(conn.path_params, "event")
 
-      case Signals.fetch(conn) do
-        {:ok, signals, conn} -> invoke_event(StarView.SSE.start(conn), page, event, signals)
+      with :ok <- StarView.Events.validate_request(conn, page, event),
+           {:ok, signals, conn} <- Signals.fetch(conn) do
+        invoke_event(StarView.SSE.start(conn), page, event, signals)
+      else
         {:error, reason, conn} -> Signals.send_error(conn, reason)
+        {:error, conn} -> conn
       end
     end
 

@@ -7,7 +7,7 @@ elements, values, branches, collections and components. It does not wrap a
 
 This is the first compiler proof, not a new page process or a complete HEEx
 replacement. Existing StarView controllers and Page APIs are unchanged.
-Octafest's installed StarView 0.5.0 does not include this experimental API.
+Published StarView 0.5.0 does not include this experimental API.
 
 ## Render and compare
 
@@ -131,11 +131,13 @@ Keep the existing Datastar attributes and request helpers, such as
 chooses how the browser sends the event; the new template representation does
 not change transport or turn an Elixir function into a browser callback.
 
-This proof does **not** validate named event targets. Current helpers produce
-request-expression strings. Phoenix's verified routes check URL shape, but
-do not prove that a particular HTTP method is mounted or that an event string
-matches a `handle_event/3` clause. Declaring a module dispatchable alone proves
-neither. Keep authorization and input validation in the actual handler.
+Opt into [checked event references](../core/checked_events.md) with
+`checked_events: true` to verify literal local helpers against the actual
+handler names and methods. Unknown names and wrong methods are also rejected
+before SSE. Router mounting and runtime URL context remain separate: Phoenix's
+verified routes check URL shape, and declaring a module dispatchable alone
+does not prove that a named event or method is handled. Keep authorization and
+input validation in the actual handler.
 
 The compiler design was cross-checked against Phoenix LiveView 1.2.12 and its
 [compiler source](https://github.com/phoenixframework/phoenix_live_view/blob/v1.2.12/lib/phoenix_live_view/tag_engine/compiler.ex).

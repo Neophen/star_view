@@ -55,6 +55,9 @@ defmodule StarView.Page do
     loop (default `30_000`).
   - `:refresh_interval` — minimum ms between `handle_refresh/1` calls
     (default `0`).
+  - `:checked_events` — derive event contracts from actual handler clauses and
+    check literal local `event/1,2` references in `~STAR` (default `false`);
+    see `StarView.Events`.
 
   ## Coalesced refresh
 
@@ -137,6 +140,7 @@ defmodule StarView.Page do
       refresh_interval!(Keyword.get(opts, :refresh_interval, @default_refresh_interval))
 
     quote do
+      unquote(StarView.Events.setup(opts, :page))
       @behaviour StarView.Page
 
       unquote(helpers(event: 1, event: 2, connect: 0, connect: 1, patch: 3, patch: 4))

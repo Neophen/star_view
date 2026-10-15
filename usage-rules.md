@@ -74,6 +74,15 @@ Snapshots can render HTML or plan selected element patches, but all bindings
 still evaluate on each render. See [STAR templates](guides/examples/star_templates.md)
 before using the opt-in experiment; it is not part of v0.5.0.
 
+`checked_events: true` on controller/page/component entrypoints derives a
+contract from final `handle_event/3` clauses. Use literal names and a literal
+method in the conn pattern; fallback clauses do not register events. Local
+helpers in that module's `~STAR` expressions are checked at compile time.
+Both dispatchers enforce the contract before SSE (404 unknown, 405 wrong method).
+Cross-module calls and router mounting are outside this compiler check. Keep
+route allowlists, authorization and input validation. See
+[checked event references](guides/core/checked_events.md).
+
 Page rendering disables inherited root layouts before mount. The generated
 StarView `Layout.app/1` owns the document; mount can explicitly select a Phoenix
 root layout instead. Bundled client assets remain the application's job.

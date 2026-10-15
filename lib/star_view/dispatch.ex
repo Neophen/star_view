@@ -58,6 +58,7 @@ defmodule StarView.Dispatch do
 
     with {:ok, module} <- decode_handler(module_param),
          true <- permitted_module?(module, opts),
+         :ok <- StarView.Events.validate_request(conn, module, event),
          {:ok, signals, conn} <- Signals.fetch(conn) do
       conn
       |> StarView.start()
@@ -65,6 +66,9 @@ defmodule StarView.Dispatch do
     else
       {:error, reason, conn} ->
         Signals.send_error(conn, reason)
+
+      {:error, conn} ->
+        conn
 
       _ ->
         send_error(conn, 404, "Not found")

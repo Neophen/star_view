@@ -29,6 +29,10 @@ defmodule StarView.Controller do
       @impl StarView
       def handle_event("increment", signals, conn), do: ...
 
+  `use StarView, checked_events: true` derives event registration from literal
+  handler names and method patterns. It checks local helpers in `~STAR` and
+  rejects unknown events or wrong methods before SSE; see `StarView.Events`.
+
   ## `assign/3` vs `signal/3`
 
   - `assign/3` sets a Plug connection assign. Function components can read it
@@ -44,12 +48,14 @@ defmodule StarView.Controller do
 
   defmacro __using__(opts \\ []) do
     auto_render? = Keyword.get(opts, :auto_render, true)
+    events = StarView.Events.setup(opts, :controller)
 
-    quote bind_quoted: [auto_render?: auto_render?] do
+    quote do
       @behaviour StarView
 
       import StarView.Controller
 
+      unquote(events)
       @doc false
       def __star_view_handler__(), do: true
 
@@ -74,7 +80,7 @@ defmodule StarView.Controller do
       def delete(name_or_opts \\ []), do: StarView.Actions.delete(__MODULE__, name_or_opts)
       def delete(event_name, opts), do: StarView.Actions.delete(__MODULE__, event_name, opts)
 
-      if auto_render? do
+      if unquote(auto_render?) do
         def action(conn, opts) do
           conn = super(conn, opts)
           StarView.Controller.__maybe_auto_render__(__MODULE__, conn)

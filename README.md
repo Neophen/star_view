@@ -43,6 +43,11 @@ to the existing stream lifecycle; these additions are not in v0.5.0.
 The separate experimental [STAR template compiler](guides/examples/star_templates.md)
 uses `~STAR` and a StarView-owned tree for initial HTML and selected element
 patches. It currently requires the tested LiveView 1.2.12 parser adapter.
+Opt-in [checked events](guides/core/checked_events.md) validate literal local
+helpers such as `post("save")` against the actual handler names and methods.
+
+The checkout includes a copyable [Datastar agent skill](guides/introduction/agent_skill.md)
+at `skills/datastar/`, bundled in Hex builds, for Codex, Claude Code and other skill-capable agents.
 
 A short Phoenix event looks like this:
 
