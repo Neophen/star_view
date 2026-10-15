@@ -4,6 +4,9 @@
 
 ### Added
 
+- Experimental `~STAR` compiler and a StarView-owned template/node representation
+  with initial HTML rendering and conservative HTML patch planning. The adapter
+  is gated to Phoenix LiveView 1.2.12; no new page process or dependency upgrade.
 - Optional coalesced rendering on the existing stream loop: `:render`,
   `:render_interval`, `:render_on_connect` and `StarView.invalidate/1`.
   `StarView.Page.handle_refresh/1` exposes the same lifecycle with

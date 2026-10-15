@@ -67,6 +67,13 @@ Use `~H` and Phoenix function components. `StarView.Page.Assigns` provides
 Supply all required assigns when patching. Components targeted without a
 selector need an explicit root ID.
 
+The experimental `~STAR` compiler uses its own `StarView.Template` tree and
+requires the tested LiveView 1.2.12 parser adapter. It is native-only: convert
+called components and slots too; legacy HEEx values raise conversion errors.
+Snapshots can render HTML or plan selected element patches, but all bindings
+still evaluate on each render. See [STAR templates](guides/examples/star_templates.md)
+before using the opt-in experiment; it is not part of v0.5.0.
+
 Page rendering disables inherited root layouts before mount. The generated
 StarView `Layout.app/1` owns the document; mount can explicitly select a Phoenix
 root layout instead. Bundled client assets remain the application's job.
