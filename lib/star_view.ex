@@ -116,6 +116,12 @@ defmodule StarView do
   defdelegate start_stream(conn, scope_key, opts), to: StarView.StreamRegistry
 
   @doc """
+  Requests one coalesced `:render` from the running stream; see `StarView.Stream.invalidate/1`.
+  """
+  @spec invalidate(Plug.Conn.t()) :: Plug.Conn.t()
+  defdelegate invalidate(conn), to: StarView.Stream
+
+  @doc """
   Checks whether a chunked SSE connection still accepts writes.
   """
   @spec check_connection(Plug.Conn.t()) :: {:ok, Plug.Conn.t()} | {:error, Plug.Conn.t()}

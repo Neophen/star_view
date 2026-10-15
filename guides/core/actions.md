@@ -69,6 +69,31 @@ only POST. Add PUT/PATCH routes only when your application uses those helpers.
 GET actions must be read-only. A helper's verb does not enforce authorization
 or CSRF protection; those remain router and handler responsibilities.
 
+## Fetch options
+
+Controller helpers accept the same trusted JavaScript `:opts` object as page
+and component event helpers. Values such as an `AbortController`, regular
+expressions, and signal references must stay JavaScript expressions:
+
+```elixir
+StarView.Actions.post(MyAppWeb.CounterController, "save",
+  opts: "{requestCancellation: controller, retry: 'never', retryMaxCount: 0}"
+)
+```
+
+Only pass developer-authored code to `:opts`; encode dynamic literal values with
+`StarView.JSON.encode!/1` and never build executable options from submitted text.
+Check the emitted expression in integration tests.
+
+Keep mutation retries separate from read-stream reconnection. Verify the pinned
+Datastar client's behavior: Octafest's vendored Pro 1.0.4 transport was verified
+with a failing-fetch test and needs
+`retryMaxCount: 0` as well as `retry: 'never'` to prevent network-error retries.
+Use an explicit payload or `filterSignals` to send only the operation's inputs,
+retaining CSRF and the application's authorization boundary. A timeout or lost
+response can follow a committed write; communicate an unconfirmed outcome
+instead of automatically resubmitting it.
+
 ## The dynamic module contract
 
 The overload `StarView.Actions.post("increment")` uses the client-only

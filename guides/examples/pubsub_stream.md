@@ -24,8 +24,13 @@ Keep a public `tabId` signal in the root document. `tab-id` is the HTML spelling
 Datastar camelizes; an underscore prefix would prevent transmission:
 
 ```heex
-<body data-signals:tab-id="sessionStorage.getItem('_sv_tab') || (() => { const id = crypto.randomUUID(); sessionStorage.setItem('_sv_tab', id); return id; })()">
+<body data-signals:tab-id__ifmissing="crypto.randomUUID()">
 ```
+
+This id is stable for reconnects within the document; a reload gets a new one.
+An id saved unconditionally in `sessionStorage` can be copied into duplicated
+tabs, causing stream ownership collisions. Keep signal initialization outside
+the root that receives live patches, and treat any submitted tab id as untrusted.
 
 Open the endpoint with a constant, local URL in the page:
 

@@ -9,6 +9,7 @@ defmodule StarView.Page.Helpers do
   """
 
   @verbs ~w(get post put patch delete)a
+  @retry_modes ~w(auto always error never)a
 
   @doc """
   Builds a page-local Datastar action expression.
@@ -62,18 +63,17 @@ defmodule StarView.Page.Helpers do
   end
 
   @doc false
-  def action(verb, args, nil), do: "@#{verb}(#{args})"
-  def action(verb, args, extra) when is_binary(extra), do: "@#{verb}(#{args}, #{extra})"
-
-  def action(_verb, _args, _extra),
-    do: raise(ArgumentError, ":opts must be trusted JavaScript text")
+  defdelegate action(verb, args, extra), to: StarView.Actions, as: :expression
 
   @doc """
   Builds the stream-connect expression for `data-init` /
   `data-on:online__window`.
 
       connect()
-      # POST to the validated current pathname, retrying indefinitely
+      # POST to the validated current pathname, using the client's default retry policy
+
+      connect(retry: :always)
+      # Reconnect after successful read-stream closures too
 
       connect(include_search: true)
       # Include the current query string
@@ -81,13 +81,20 @@ defmodule StarView.Page.Helpers do
   ## Options
 
   - `:opts` — override the options object (default `"{retryMaxCount: Infinity}"`)
+  - `:retry` — `:auto | :always | :error | :never`. Opting into a retry mode
+    uses a default maximum of 64 consecutive failures (`:never` uses zero)
+    unless `:opts` sets a different maximum. The typed mode overrides `retry`
+    in a custom object expression.
   - `:include_search` — append `location.search` so query params reach
     `handle_connect` (pages whose render depends on them, e.g. `?step=`).
 
   Always emits `@post` — StarView streams connect over POST.
+  `:always` reconnects even after a deliberate server halt. Use it for live
+  resources that reconcile an authorized snapshot on every connection, not
+  mutation requests. The default remains unchanged for existing pages.
   """
   def connect(opts \\ []) when is_list(opts) do
-    extra = Keyword.get(opts, :opts, "{retryMaxCount: Infinity}")
+    extra = connect_options(opts)
 
     base = StarView.Actions.browser_local_path("location.pathname", false)
 
@@ -100,6 +107,31 @@ defmodule StarView.Page.Helpers do
 
     action(:post, url, extra)
   end
+
+  defp connect_options(opts) do
+    retry = Keyword.fetch(opts, :retry)
+    connect_retry(retry, Keyword.get(opts, :opts, default_connect_options(retry)))
+  end
+
+  # Keyword.fetch/2 returns :error when the caller did not select a retry mode.
+  defp default_connect_options(:error), do: "{retryMaxCount: Infinity}"
+  defp default_connect_options({:ok, :never}), do: "{retryMaxCount: 0}"
+  defp default_connect_options(_retry), do: "{retryMaxCount: 64}"
+
+  defp connect_retry(:error, extra), do: extra
+
+  defp connect_retry({:ok, retry}, extra) when retry in @retry_modes and is_binary(extra),
+    do: "{...(#{extra}), retry: #{StarView.Actions.javascript_string(Atom.to_string(retry))}}"
+
+  defp connect_retry({:ok, retry}, _extra) when retry not in @retry_modes,
+    do:
+      raise(
+        ArgumentError,
+        ":retry must be one of #{inspect(@retry_modes)}, got: #{inspect(retry)}"
+      )
+
+  defp connect_retry(_retry, _extra),
+    do: raise(ArgumentError, ":opts must be trusted JavaScript text")
 
   @doc """
   Renders a function component and pipes it to `StarView.Elements.patch/3`.

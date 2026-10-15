@@ -16,6 +16,11 @@ defmodule StarView.Actions do
   A dynamic `:module` override is a literal value, never JavaScript source.
   Custom `$`-prefixed overrides raise; only `"$_star_view_module"` retains the
   default dynamic signal behavior. Action strings use JSON double quotes.
+
+  Pass `:opts` to include a Datastar fetch options object, for example
+  `opts: "{retry: 'never', retryMaxCount: 0}"`. This is trusted developer
+  JavaScript emitted verbatim, never submitted signal values. The controller,
+  page and component helpers use the same options contract.
   """
 
   @verbs ~w(get post put patch delete)a
@@ -73,14 +78,23 @@ defmodule StarView.Actions do
 
   defp action(verb, module, event, opts) do
     path = dispatch_base(opts) <> "/" <> encode_segment!(encode_module(module))
-    "@#{verb}(#{javascript_string(path <> "/" <> encode_segment!(event))})"
+    args = javascript_string(path <> "/" <> encode_segment!(event))
+    expression(verb, args, Keyword.get(opts, :opts))
   end
 
   defp dynamic_action(verb, event, opts) do
     base = dispatch_base(opts)
     event = encode_segment!(event)
-    "@#{verb}(#{dynamic_path(base, event, Keyword.get(opts, :module, :dynamic))})"
+    args = dynamic_path(base, event, Keyword.get(opts, :module, :dynamic))
+    expression(verb, args, Keyword.get(opts, :opts))
   end
+
+  @doc false
+  def expression(verb, args, nil), do: "@#{verb}(#{args})"
+  def expression(verb, args, extra) when is_binary(extra), do: "@#{verb}(#{args}, #{extra})"
+
+  def expression(_verb, _args, _extra),
+    do: raise(ArgumentError, ":opts must be trusted JavaScript text")
 
   defp dynamic_path(base, event, module) when module in [:dynamic, "$_star_view_module"] do
     javascript_string(base <> "/") <>

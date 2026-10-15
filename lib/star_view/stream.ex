@@ -24,6 +24,28 @@ defmodule StarView.Stream do
   stop only their own stream, so a stale message cannot stop a newer stream on
   a reused HTTP/1.1 keep-alive process.
 
+  ## Coalesced refresh
+
+  Pass `:render` to re-render after scoped invalidations. `:info` (or any
+  callback) calls `invalidate/1`; the loop then calls `:render` once for every
+  burst of invalidations already queued. `:render_interval` (ms, default `0`)
+  is the minimum time between render starts. With `:render_on_connect`
+  (default `true` when `:render` is given) one snapshot render follows
+  `:connect`, closing the gap between page load, subscription and reconnect.
+
+      StarView.Stream.run(conn,
+        connect: &subscribe/1,
+        info: fn {:order_changed, _id}, conn -> StarView.Stream.invalidate(conn) end,
+        render: &render_orders/1,
+        render_interval: 50
+      )
+
+  `:render` may return `{:halt, conn}`. Reload and authorize business state in
+  the callback from trusted conn assigns; invalidation messages should carry
+  identifiers, not data. Pending timers and render messages are cancelled when
+  `run/2` returns or raises. A request process can own one active `run/2`;
+  nesting another run inside a callback raises `ArgumentError`.
+
   Lifecycle concepts adapted from dstar (MIT), Copyright (c) 2025 Rico Trevisan.
   """
 
@@ -31,6 +53,7 @@ defmodule StarView.Stream do
   alias StarView.Signals
   alias StarView.SSE
   alias StarView.SSE.TransportError
+  alias StarView.Stream.RenderState
   alias StarView.StreamRegistry
 
   @default_idle_check 30_000
@@ -69,39 +92,89 @@ defmodule StarView.Stream do
   `{:halt, conn}`), `:disconnect` (conn -> any), `:idle_check` (positive ms).
   Optional `:replaced` receives the legacy `{:EXIT, pid, :replaced}` message
   after exact claim release and before disconnect.
+
+  Refresh options: `:render` (conn -> conn or `{:halt, conn}`),
+  `:render_interval` (non-negative ms, default `0`) and `:render_on_connect`
+  (boolean, default `true` when `:render` is given). See "Coalesced refresh".
   """
   @spec run(Conn.t(), keyword()) :: Conn.t()
   def run(%Conn{state: :chunked} = conn, opts \\ []) do
+    RenderState.ensure_inactive!()
     {conn, disconnect} = run_response(conn, opts)
+    conn = RenderState.clear(conn)
     disconnect.(conn)
     conn
   end
+
+  @doc """
+  Requests one coalesced `:render` call from the running stream loop.
+
+  Further calls before that render are no-ops, and the render waits for
+  `:render_interval` since the previous render started. Raises
+  `ArgumentError` unless the conn belongs to the currently running `run/2`
+  with a `:render` callback; a conn kept after `run/2` returns (including in
+  the `:disconnect` callback) cannot schedule a render.
+  """
+  @spec invalidate(Conn.t()) :: Conn.t()
+  def invalidate(%Conn{} = conn), do: RenderState.invalidate(conn)
 
   defp run_response(conn, opts) do
     callbacks = callbacks(opts)
     {run_connected(conn, callbacks), callbacks.disconnect}
   after
+    RenderState.cleanup()
     StreamRegistry.release(conn)
   end
 
   defp run_connected(conn, callbacks) do
-    conn |> callbacks.connect.() |> ensure_conn!() |> loop(callbacks, deadline(callbacks))
+    conn
+    |> RenderState.init(not is_nil(callbacks.render), callbacks.render_interval)
+    |> callbacks.connect.()
+    |> ensure_conn!()
+    |> initial_render(callbacks)
+    |> loop(callbacks, deadline(callbacks))
   rescue
     exception in TransportError -> transport_failure(exception, conn, callbacks, __STACKTRACE__)
   end
 
   defp callbacks(opts) do
+    render = render!(Keyword.get(opts, :render))
+
     %{
       connect: Keyword.get(opts, :connect, & &1),
       info: Keyword.get(opts, :info, fn _message, conn -> conn end),
       replaced: Keyword.get(opts, :replaced, fn _message, conn -> conn end),
       disconnect: Keyword.get(opts, :disconnect, fn _conn -> :ok end),
-      idle_check: idle_check!(Keyword.get(opts, :idle_check, @default_idle_check))
+      idle_check: idle_check!(Keyword.get(opts, :idle_check, @default_idle_check)),
+      render: render,
+      render_interval: render_interval!(Keyword.get(opts, :render_interval, 0)),
+      render_on_connect:
+        render_on_connect!(Keyword.get(opts, :render_on_connect, not is_nil(render)), render)
     }
   end
 
   defp idle_check!(value) when is_integer(value) and value > 0, do: value
   defp idle_check!(_value), do: raise(ArgumentError, ":idle_check must be a positive integer")
+
+  defp render!(nil), do: nil
+  defp render!(render) when is_function(render, 1), do: render
+  defp render!(_render), do: raise(ArgumentError, ":render must be a 1-arity function")
+
+  defp render_interval!(value) when is_integer(value) and value >= 0, do: value
+
+  defp render_interval!(_value),
+    do: raise(ArgumentError, ":render_interval must be a non-negative integer")
+
+  defp render_on_connect!(true, nil),
+    do: raise(ArgumentError, ":render_on_connect requires a :render callback")
+
+  defp render_on_connect!(value, _render) when is_boolean(value), do: value
+
+  defp render_on_connect!(_value, _render),
+    do: raise(ArgumentError, ":render_on_connect must be a boolean")
+
+  defp initial_render(conn, %{render_on_connect: true}), do: RenderState.invalidate(conn)
+  defp initial_render(conn, _callbacks), do: conn
 
   defp transport_failure(%TransportError{} = exception, conn, callbacks, stacktrace) do
     if TransportError.disconnected?(exception) do
@@ -146,11 +219,21 @@ defmodule StarView.Stream do
       {:EXIT, _pid, reason} ->
         exit(reason)
 
+      {:star_view_stream, :render, token} when is_reference(token) ->
+        render_requested(conn, callbacks, deadline, token)
+
       message
       when not is_tuple(message) or tuple_size(message) != 2 or elem(message, 0) != :bandit ->
         message |> callbacks.info.(conn) |> continue(callbacks, deadline)
     after
       remaining -> probe(conn, callbacks)
+    end
+  end
+
+  defp render_requested(conn, callbacks, deadline, token) do
+    case RenderState.take(conn, token) do
+      {:ok, conn} -> conn |> callbacks.render.() |> continue(callbacks, deadline)
+      :stale -> loop(conn, callbacks, deadline)
     end
   end
 

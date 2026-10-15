@@ -5,6 +5,7 @@ defmodule StarView.Elements do
 
   alias StarView.Constants
   alias StarView.SSE
+  alias StarView.Stream.RenderState
 
   @event_type Constants.event_type(:patch_elements)
   @default_patch_mode Constants.default_element_patch_mode()
@@ -12,15 +13,80 @@ defmodule StarView.Elements do
   @default_use_view_transitions Constants.default_elements_use_view_transitions()
   @valid_modes Constants.element_patch_modes()
   @valid_namespaces Constants.namespaces()
+  @idempotent_modes [:outer, :inner, :replace]
 
   @doc """
   Sends HTML elements to the browser for DOM patching.
+
+  ## Skipping unchanged patches
+
+  Inside `StarView.Stream.run/2`, `only_changed: true` with an explicit `:key`
+  skips a patch whose HTML, selector, mode, namespace and view-transition
+  setting and SSE metadata all equal the last patch sent under that key on this stream.
+
+      patch(conn, html, key: :orders, selector: "#orders", only_changed: true)
+
+  Only idempotent modes (`:outer`, `:inner`, `:replace`) are accepted, since
+  repeating an append, prepend, before, after or remove has a visible effect.
+  The comparison uses a SHA-256 digest. Each stream tracks up to 64 keys; later
+  keys always send. A new stream starts empty, and conns outside an active
+  `run/2` (such as event responses) always send. `format_patch/2` ignores these
+  options.
+
+  The stream only knows what it sent, not the browser's final DOM. Any other
+  element patch or removal on the same stream (including `execute_script/3`)
+  clears every remembered key, so the next keyed patch sends again. Event
+  responses, other streams, raw `StarView.send/4` events and browser code can
+  still change the DOM unseen: use `only_changed` only for a region this stream
+  owns exclusively. Give each key its own non-overlapping region; two keys that
+  target the same or nested elements can skip a patch the page needs.
   """
   @spec patch(Plug.Conn.t(), iodata() | tuple() | nil, keyword()) :: Plug.Conn.t()
   def patch(conn, elements, opts \\ []) do
     data_lines = data_lines(elements, opts)
-    SSE.send!(conn, @event_type, data_lines, sse_opts(opts))
+    send_patch(conn, data_lines, opts, Keyword.get(opts, :only_changed, false))
   end
+
+  defp send_patch(conn, data_lines, opts, false),
+    do: conn |> send_lines(data_lines, opts) |> RenderState.forget_all()
+
+  defp send_patch(conn, data_lines, opts, true) do
+    idempotent_mode!(opts)
+    send_changed(conn, data_lines, opts, changed_key!(opts))
+  end
+
+  defp send_patch(_conn, _data_lines, _opts, _only_changed),
+    do: raise(ArgumentError, ":only_changed must be a boolean")
+
+  defp send_changed(conn, data_lines, opts, key) do
+    fingerprint = fingerprint(data_lines, opts)
+
+    if RenderState.unchanged?(conn, key, fingerprint),
+      do: conn,
+      else: conn |> send_lines(data_lines, opts) |> RenderState.remember(key, fingerprint)
+  end
+
+  defp send_lines(conn, data_lines, opts),
+    do: SSE.send!(conn, @event_type, data_lines, sse_opts(opts))
+
+  defp idempotent_mode!(opts) do
+    mode = opts |> Keyword.get(:mode, @default_patch_mode) |> normalize_mode()
+
+    if mode not in @idempotent_modes do
+      raise ArgumentError,
+            "only_changed: true supports #{inspect(@idempotent_modes)} modes, got: #{inspect(mode)}"
+    end
+  end
+
+  defp changed_key!(opts) do
+    case Keyword.get(opts, :key) do
+      nil -> raise ArgumentError, "only_changed: true requires an explicit non-nil :key"
+      key -> key
+    end
+  end
+
+  defp fingerprint(data_lines, opts),
+    do: :crypto.hash(:sha256, SSE.format_event(@event_type, data_lines, sse_opts(opts)))
 
   @doc """
   Sends an element removal patch.

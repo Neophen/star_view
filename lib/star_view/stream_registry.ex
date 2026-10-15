@@ -9,7 +9,11 @@ defmodule StarView.StreamRegistry do
 
   Put the per-tab signal in the root layout:
 
-      <body data-signals:tab-id="sessionStorage.getItem('_sv_tab') || (() => { const id = crypto.randomUUID(); sessionStorage.setItem('_sv_tab', id); return id; })()">
+      <body data-signals:tab-id__ifmissing="crypto.randomUUID()">
+
+  A per-document id avoids copied `sessionStorage` ids making duplicated tabs
+  replace each other's streams. It survives reconnects within the document;
+  a full navigation/reload gets a new id. This is not durable tab-state storage.
 
   Prefer `StarView.Stream.open/2` and `StarView.Stream.run/2`, which release the
   exact claim on teardown and ignore stale takeover messages on HTTP/1.1

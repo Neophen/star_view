@@ -21,7 +21,7 @@ defmodule StarView.MixProject do
 
   def application() do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
@@ -69,12 +69,14 @@ defmodule StarView.MixProject do
   defp extras() do
     [
       "guides/introduction/overview.md",
+      "guides/introduction/mental_model.md",
       "guides/introduction/installation.md",
       "guides/phoenix/web_module.md",
       "guides/phoenix/layout.md",
       "guides/phoenix/auth.md",
       "guides/phoenix/pages.md",
       "guides/phoenix/development_server.md",
+      "guides/phoenix/compression.md",
       "guides/core/patch_signals.md",
       "guides/core/actions.md",
       "guides/core/patch_element.md",
@@ -84,6 +86,7 @@ defmodule StarView.MixProject do
       "guides/examples/phoenix_counter.md",
       "guides/examples/plug_endpoints.md",
       "guides/examples/pubsub_stream.md",
+      "guides/examples/reactive_rendering.md",
       "guides/reference/api_overview.md",
       "guides/reference/migration_from_dstar.md",
       "guides/reference/troubleshooting.md",
