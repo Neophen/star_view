@@ -13,6 +13,7 @@ defmodule StarView.Template.Compiler.Expressions do
   end
 
   def rewrite(ast, context) do
+    ast = StarView.Events.References.track(ast, context.caller)
     {ast, dependencies} = Macro.postwalk(ast, MapSet.new(), &assign(&1, &2, context))
     {ast, dependencies |> MapSet.to_list() |> Enum.sort()}
   end

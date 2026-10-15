@@ -53,9 +53,13 @@ defmodule StarView.Component do
 
   Colocation only: no server-side component state, no lifecycle. State
   lives in signals, the DOM, and the database.
+
+  Pass `checked_events: true` to derive an event contract from the actual
+  handler clauses and check literal local `event/1,2` references in `~STAR`.
+  See `StarView.Events`.
   """
 
-  defmacro __using__(_opts) do
+  defmacro __using__(opts) do
     if !Code.ensure_loaded?(Phoenix.Component) do
       raise ArgumentError, """
       `use StarView.Component` requires the optional dependencies. Add to your deps:
@@ -66,6 +70,7 @@ defmodule StarView.Component do
     end
 
     quote do
+      unquote(StarView.Events.setup(opts, :component))
       unquote(StarView.Page.helpers())
 
       # Marks the module dispatchable through `StarView.Dispatch`, which

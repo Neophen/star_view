@@ -37,12 +37,17 @@ controller entrypoints remain supported.
 
 Start with [Thinking in Phoenix, Datastar and StarView](guides/introduction/mental_model.md)
 for the controller/backend model and the inspiration from Jacob O'Bryant's Biff.
-The upcoming release adds optional [coalesced reactive rendering](guides/examples/reactive_rendering.md)
-to the existing stream lifecycle; these additions are not in v0.5.0.
+StarView 0.6.0 adds optional [coalesced reactive rendering](guides/examples/reactive_rendering.md)
+to the existing stream lifecycle.
 
 The separate experimental [STAR template compiler](guides/examples/star_templates.md)
 uses `~STAR` and a StarView-owned tree for initial HTML and selected element
 patches. It currently requires the tested LiveView 1.2.12 parser adapter.
+Opt-in [checked events](guides/core/checked_events.md) validate literal local
+helpers such as `post("save")` against the actual handler names and methods.
+
+The checkout includes a copyable [Datastar agent skill](guides/introduction/agent_skill.md)
+at `skills/datastar/`, bundled in Hex builds, for Codex, Claude Code and other skill-capable agents.
 
 A short Phoenix event looks like this:
 
@@ -96,7 +101,7 @@ For manual installation:
 
 ```elixir
 def deps do
-  [{:star_view, "~> 0.5.0"}]
+  [{:star_view, "~> 0.6.0"}]
 end
 ```
 
@@ -183,13 +188,12 @@ assign its component requires. See [component patches](guides/core/patch_element
 - [Actions and quoted values](guides/core/actions.md): explicit targets, module signal contract, encoded paths, and double-quote migration.
 - [Manual Plug endpoints](guides/examples/plug_endpoints.md): thread fetched conns and reject bad input before streaming.
 - [PubSub streams](guides/examples/pubsub_stream.md): authentication, subscription cleanup, exact ownership, and fixed-deadline probes.
-- [Reactive rendering](guides/examples/reactive_rendering.md): scoped invalidation, reconnect snapshots, coalescing and unchanged-patch detection (unreleased).
+- [Reactive rendering](guides/examples/reactive_rendering.md): scoped invalidation, reconnect snapshots, coalescing and unchanged-patch detection (added in 0.6.0).
 - [Compression](guides/phoenix/compression.md): check HTTP server, proxy and CDN compression while preserving SSE latency.
 - [Troubleshooting](guides/reference/troubleshooting.md): malformed params, silent client mistakes, CSRF, stream 503s, and transport errors.
 
 The optional [AshAuthentication magic-link generator](guides/phoenix/auth.md),
-`mix star_view.setup.auth`, was included in v0.3.18 and remains available in
-v0.4.0. It renders StarView sign-in pages and exchanges the token through a
+`mix star_view.setup.auth`, renders StarView sign-in pages and exchanges the token through a
 normal form POST so session cookies are set before redirecting. It requires
 the application's AshAuthentication resource/strategy and domain interfaces.
 

@@ -4,6 +4,7 @@ defmodule StarView.DocumentationExamplesTest do
   import Plug.Test
 
   alias StarView.Documentation.RawCounterEndpoint
+  alias StarView.DocumentationWeb.CheckedSaveController
   alias StarView.DocumentationWeb.CounterButton
   alias StarView.DocumentationWeb.CounterController
   alias StarView.DocumentationWeb.CounterPage
@@ -23,6 +24,7 @@ defmodule StarView.DocumentationExamplesTest do
     compile_example("guides/examples/pubsub_stream.md", "MyAppWeb.CounterStreamController")
     compile_example("guides/examples/reactive_rendering.md", "MyAppWeb.OrdersPage")
     compile_example("guides/examples/star_templates.md", "MyAppWeb.CounterTemplate")
+    compile_example("guides/core/checked_events.md", "MyAppWeb.CheckedSaveController")
     compile_example("guides/core/actions.md", "MyAppWeb.CounterButton")
     compile_example("guides/phoenix/pages.md", "MyAppWeb.CounterPage")
     compile_example("guides/phoenix/pages.md", "MyAppWeb.DashboardPage")
@@ -42,6 +44,27 @@ defmodule StarView.DocumentationExamplesTest do
     assert {200, _headers, body} = TestAssertions.chunked_resp(result)
     assert body =~ ~s(data: signals {"count":3})
     assert body =~ "Count: 3</output>"
+  end
+
+  test "checked controller guide renders native HTML and dispatches its actual handler" do
+    initial = conn(:get, "/save") |> Phoenix.Controller.put_format("html")
+    initial = apply(CheckedSaveController, :call, [initial, :index])
+    assert initial.status == 200
+    assert initial.resp_body =~ ~s(id="save")
+    assert initial.resp_body =~ "@post"
+
+    request = conn(:post, "/", StarView.JSON.encode!(%{title: "Title"}))
+
+    request = %{
+      request
+      | path_params: %{
+          "module" => StarView.Actions.encode_module(CheckedSaveController),
+          "event" => "save"
+        }
+    }
+
+    result = StarView.Dispatch.call(request, [])
+    StarView.Test.assert_patched_signals(result, %{saved: true})
   end
 
   test "reactive page example renders backend data and stops a forbidden refresh" do
