@@ -36,16 +36,31 @@ keys for keyed lists. A reset requires a fresh authorized baseline.
 
 Native components and slots must return `StarView.Template`. Legacy HEEx values
 are incompatible and should produce conversion errors. Convert the called
-component tree with the page, including shared inputs and Phoenix helpers that
-return HEEx, such as `Phoenix.Component.form/1`. Do not add an automatic bridge.
+component tree called from the native subtree, including shared inputs and
+Phoenix helpers that return HEEx, such as `Phoenix.Component.form/1`.
+Do not add an automatic bridge.
 Phoenix's component-tag dispatcher expects its own rendered type; STAR's
 dispatcher expects ours. Ordinary form data/changesets can still be used.
+
+An existing HEEx HTTP document or shell can interpolate a native value such as
+`{content(assigns)}` through `Phoenix.HTML.Safe`. This is outward serialization;
+the native subtree still cannot consume HEEx. Keep that boundary explicit and
+describe a partially native screen accurately. It avoids migrating every shared
+shell merely to check one page's event references.
 
 Every binding still evaluates on each template invocation. Dependency metadata
 does not currently skip rendering or database reads. There is no new GenServer
 runtime or automatic update scheduler. Browser-owned, ignored and foreign-content
 subtrees need conservative patch boundaries. Preserve Rocket/editor lifecycle
 and signal ownership before adopting a template on an actual page.
+
+Measure complete rendering plus HTML encoding and actual SSE bytes, both raw
+and compressed, before expanding adoption. Native node allocation and validation
+can cost more than HEEx; changing sigils alone need not shrink a response. When
+bulk rows gain nothing, retain their existing renderer and put checked request
+controls in small native subtrees. `patch_element/3` does not automatically keep
+prior templates or choose diffs across independent requests. An offline diff is
+potential, not an enabled application saving.
 
 The current parser adapter requires exactly LiveView 1.2.12. The compiler rejects
 unsupported constructs rather than guessing their meaning. Read

@@ -64,8 +64,8 @@ Only the request process owns its Plug connection.
 Components and slots must return native template subtrees. **Legacy `~H`
 values are incompatible.** An inline `~H` sigil fails at compilation; a legacy
 component or slot result raises a clear conversion error during evaluation.
-There is no automatic compatibility bridge. Convert the page and its called
-components together, including Phoenix helpers that return HEEx (such as
+There is no automatic compatibility bridge. Convert the native subtree and its
+called components together, including Phoenix helpers that return HEEx (such as
 `Phoenix.Component.form/1`) and existing shared `~H` input components.
 Phoenix routing, controllers, changesets and request security remain usable.
 
@@ -73,6 +73,47 @@ Inside `~STAR`, component tags call our dispatcher and expect our template
 type. Ordinary `~H` tags still call Phoenix's dispatcher, which expects
 `Phoenix.LiveView.Rendered`; these rendering systems cannot be mixed through
 component tags.
+
+## Incremental adoption through an HTTP host
+
+An existing HEEx document or shell can interpolate a native value through
+`Phoenix.HTML.Safe`. Keep the page's native content in a separate function:
+
+```elixir
+def render(assigns) do
+  ~H"""
+  <div id="existing-host">{content(assigns)}</div>
+  """
+end
+
+defp content(assigns) do
+  ~STAR"""
+  <p id="count">Count: {@count}</p>
+  """
+end
+```
+
+This reduced example shows the direction of serialization; an application can
+keep its complete existing HTTP document and shell around that native value.
+The native subtree never consumes HEEx. Its component tags and slots still
+require `StarView.Template`, while the host retains its ordinary HEEx components.
+Only the native subtree participates in native diff planning. Keep IDs unique
+across both layers and do not describe this as a fully native page.
+
+For a patch-heavy screen, compare complete rendering plus HTML encoding and
+actual SSE bytes before converting its bulk content. All bindings still run,
+and building/validating a native tree can add cost. A diff that falls back to
+the full existing root can add selector metadata without shrinking the HTML.
+Small native request-control subtrees may provide checked event references
+while keeping bulk rows in their existing renderer.
+
+Measure initial mounting separately from later region patches. Include accepted
+compression when comparing bytes, and distinguish offline diff potential from
+updates an application actually emits. `patch_element/3` does not retain a prior
+native tree or automatically choose diffs between independent requests. Use a
+bounded, authorized baseline only when the existing lifecycle needs one.
+
+## Patch boundaries
 
 IDs must remain unique across the complete document. Trusted raw HTML is
 still opaque; duplicate checks cannot inspect IDs hidden inside that markup.

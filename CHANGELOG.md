@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- Clarify incremental native subtree adoption through existing HEEx HTTP hosts,
+  and require separate rendering and actual patch measurements before expanding
+  STAR use. The bundled skill explains the same boundary and retained-baseline limits.
+
 ## v0.6.0
 
 ### Added

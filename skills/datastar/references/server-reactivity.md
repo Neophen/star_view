@@ -59,3 +59,12 @@ infrastructure change is justified solely by the reference implementation.
 Cache content-hashed assets immutably where configured. Give personalized HTML
 and data appropriate private cache boundaries. A smaller wire payload does not
 prove lower server cost; the native STAR prototype still evaluates all bindings.
+
+Compare the existing renderer against native STAR on the same realistic bounded
+data, including HTML encoding and emitted SSE framing. Measure initial mounting
+and repeated patches separately: a search control rendered only at mount is not
+part of a pagination-only patch benchmark. A full-root diff can add selector
+metadata without reducing HTML. Retain fast bulk rendering when the native tree
+has no measured benefit; small native event controls can still provide checked
+references through an existing HEEx host. A safe retained baseline and an actual
+smaller emitted update are prerequisites for claiming automatic diff savings.
