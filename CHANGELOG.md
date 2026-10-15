@@ -1,6 +1,24 @@
 # Changelog
 
-## Unreleased
+## v0.6.1
+
+### Added
+
+- Native `case`/`cond` EEx clauses with pattern bindings, guards and conservative
+  branch patching, plus `:if` on named slots. Legacy HEEx results remain incompatible.
+
+### Changed
+
+- Replace per-element and per-attribute ASCII regex validation with equivalent
+  byte scanners, validate dynamic names once, and avoid repeated module-loading
+  checks and successful-component error-message formatting during rendering.
+- Keep patch accumulation and duplicate-key checks linear while preserving
+  document order, missing-key precedence and existing patch boundaries.
+
+### Fixed
+
+- Accept the pinned parser's normalized EEx comment nodes without emitting them,
+  and consume compiler-only formatting/interpolation hints without DOM attributes.
 
 ### Documentation
 

@@ -2,23 +2,29 @@ defmodule StarView.Template.Compiler.Blocks do
   @moduledoc false
 
   alias StarView.Template.Compiler
+  alias StarView.Template.Compiler.Clauses
   alias StarView.Template.Compiler.Expressions
 
   def compile(source, clauses, meta, context) do
-    require_supported_block!(source, context, meta)
+    form = Regex.run(~r/\A\s*(if|unless|for|case|cond)\b/, source, capture: :all_but_first)
+    compile_form(form, source, clauses, meta, context)
+  end
+
+  defp compile_form([form], source, clauses, meta, context) when form in ["case", "cond"],
+    do: Clauses.compile(source, clauses, meta, context)
+
+  defp compile_form([_form], source, clauses, meta, context) do
     {ast, dependencies} = Expressions.parse(source <> "\nnil\nend", context, meta)
     block(ast, clauses, Map.put(meta, :dependencies, dependencies), context)
   end
 
-  defp require_supported_block!(source, context, meta) do
-    if !Regex.match?(~r/\A\s*(if|unless|for)\b/, source),
-      do:
-        Compiler.error!(
-          "this proof supports if, unless and plain for blocks; move other control flow into helpers",
-          context,
-          meta
-        )
-  end
+  defp compile_form(nil, _source, _clauses, meta, context),
+    do:
+      Compiler.error!(
+        "unsupported EEx block; move this control flow into a helper",
+        context,
+        meta
+      )
 
   defp block({name, _, [condition, _]}, clauses, meta, context) when name in [:if, :unless] do
     {positive, negative} = branches(clauses, context, meta)

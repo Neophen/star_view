@@ -56,9 +56,9 @@ Only the request process owns its Plug connection.
 - HTML structure, static entities, attribute escaping and dynamic values.
 - `@assigns`, local and remote function components, and ordinary `attr` and
   `slot` declarations from `Phoenix.Component`.
-- Default and named slots, including `:let` patterns.
+- Default and named slots, including `:let` patterns and conditional named slots.
 - Element/component `:if`, `:for` and explicit `:key` directives.
-- Output `if`, `unless` and plain `for` EEx blocks.
+- Output `if`, `unless`, `case`, `cond` and plain `for` EEx blocks.
 - Datastar attributes as ordinary HTML attributes.
 
 Components and slots must return native template subtrees. **Legacy `~H`
@@ -113,6 +113,63 @@ updates an application actually emits. `patch_element/3` does not retain a prior
 native tree or automatically choose diffs between independent requests. Use a
 bounded, authorized baseline only when the existing lifecycle needs one.
 
+## Rendering performance in 0.6.1
+
+The 0.6.1 renderer avoids repeated ASCII regex validation, duplicate dynamic-name
+validation, per-value loading checks and successful-component error formatting.
+The diff planner also avoids quadratic patch-list and duplicate-key bookkeeping.
+Names and dynamic values retain their validation/escaping contracts; this is not
+a trusted-metadata bypass or a change to snapshot ownership.
+
+Controlled Octafest trials used actual component code for a 16-block builder,
+a 48-screening schedule and film forms/detail tabs. These are local test-fixture
+measurements on Elixir 1.20.4 / OTP 29.0.6 and LiveView 1.2.12, with four schedulers,
+200 samples after warm-up, and repeated HEEx phases to expose wall-time noise.
+Median render plus HTML encoding, milliseconds:
+
+| Region | HEEx first / repeat | 0.6.0 runtime | 0.6.1 runtime |
+| --- | ---: | ---: | ---: |
+| Builder canvas | 5.36 / 5.64 | 13.84 | 5.28 |
+| Builder open editor | 1.64 / 1.80 | 10.84 | 3.32 |
+| Schedule workspace | 6.53 / 9.32 | 32.92 | 10.73 |
+| Bounded schedule revalidation | 1.83 / 1.81 | 7.85 | 3.24 |
+| Film screening filter | 0.238 / 0.387 | 1.449 | 0.422 |
+
+Both native variants use the same working compiler compatibility fixes; released
+0.6.0 cannot compile these component trees unchanged. The measurements isolate
+its older render/diff runtime. The optimized native paths still use approximately
+1.4–2.0 times the HEEx reductions across the 14 trials. Reductions do not fully
+count regex/NIF work. Small wall-time differences are not evidence of a native
+win. A separate full film-form trial includes two queries and reports their time
+separately. Reachable term sizes describe different object graphs and exclude
+off-heap binaries; they are not a comparison of RSS or per-tab retained memory.
+
+Patch size and CPU must be assessed together. A native diff of the whole schedule
+still targets its custom-element root and is larger than the application's
+existing bounded revalidation. A diff of that bounded response reduces 12,338
+gzip bytes to 6,536, while render/diff/framing takes 15.03ms versus HEEx's
+2.74–2.95ms. A film slot change reduces 5,485 gzip bytes to 929 at 3.04ms versus
+1.01–1.61ms. These are hypothetical retained-baseline region plans, not enabled
+application savings or complete HTTP/event latency. Gzip estimates do not imply
+that the production SSE path is compressed.
+
+Generated request IDs remain in actual diff/byte measurements. Only formatting,
+class-token spacing and hidden request/CSRF values are normalized for DOM parity.
+Browser-bound editor changes can leave HTML unchanged; an empty diff does not
+mean bindings were skipped. The benchmark converted 76 actual modules inside
+its own VM, with explicit native helper adapters and no captured-HEEx substitution.
+
+From a Git checkout with the `v0.6.0` tag, reproduce the small renderer benchmark:
+
+```sh
+mix run --no-start bench/template_render.exs
+```
+
+The captured real-page results are in `bench/octafest-results.json` in the source
+repository. Keep broad page migrations paused unless the feature demonstrates
+simpler code or a worthwhile update lifecycle. Smaller existing regions can
+avoid both excess HTML and the cost of retaining full native snapshots.
+
 ## Patch boundaries
 
 IDs must remain unique across the complete document. Trusted raw HTML is
@@ -151,11 +208,20 @@ component-call diagnostics, but its generated rendering code is discarded.
 StarView's lowering emits the actual tree. Keeping this adapter narrow avoids
 pretending that private parser tuples are a stable public API.
 
-`case`, `cond`, non-output EEx statements, macro components (`:type`), and
-conditional/repeated named slots are not supported in this first proof. They
+`case` and `cond` use separate EEx tags for their clauses, just as in ordinary
+multiline HEEx. Patterns, bound variables and guards are retained. Changing
+which clause is selected bubbles to an existing ancestor; a changed value
+within the same clause can target a stable descendant. Guard assign access
+uses guard-safe map access, so a missing assign can cause the guard to fail.
+
+Non-output EEx statements, macro components (`:type`), and repeated named slots
+are not supported. They
 fail at compile time; move that control flow into a helper returning native
 templates or ordinary values.
 HTML escaping is not JavaScript or URL sanitization.
+
+The native compiler does not reproduce LiveView's generated runtime markers or
+colocated CSS/hook integration. Keep those dependency-owned boundaries in HEEx.
 
 Evaluated class lists omit empty entries and join with one space. HEEx's
 static-prefix optimization can retain a trailing space; class tokens agree,

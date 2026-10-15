@@ -17,6 +17,8 @@ defmodule StarView.Template.Compiler.Nodes do
   def compile({:eex_comment, _, meta}, context),
     do: Compiler.node(:text, [value: ""], context, meta)
 
+  def compile({:eex_comment, _}, context), do: Compiler.node(:text, [value: ""], context)
+
   def compile({:eex, _source, meta}, context),
     do:
       Compiler.error!(

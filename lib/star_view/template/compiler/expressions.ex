@@ -14,9 +14,27 @@ defmodule StarView.Template.Compiler.Expressions do
 
   def rewrite(ast, context) do
     ast = StarView.Events.References.track(ast, context.caller)
-    {ast, dependencies} = Macro.postwalk(ast, MapSet.new(), &assign(&1, &2, context))
+    {ast, dependencies} = Macro.prewalk(ast, MapSet.new(), &guard_assigns/2)
+    {ast, dependencies} = Macro.postwalk(ast, dependencies, &assign(&1, &2, context))
     {ast, dependencies |> MapSet.to_list() |> Enum.sort()}
   end
+
+  defp guard_assigns({:when, meta, arguments}, dependencies) do
+    {patterns, [guard]} = Enum.split(arguments, -1)
+    {guard, dependencies} = Macro.prewalk(guard, dependencies, &guard_assign/2)
+    {{:when, meta, patterns ++ [guard]}, dependencies}
+  end
+
+  defp guard_assigns(ast, dependencies), do: {ast, dependencies}
+
+  defp guard_assign({:@, meta, [{name, _, _}]}, dependencies) do
+    assigns = Macro.var(:assigns, nil)
+
+    {{{:., meta, [assigns, name]}, Keyword.put(meta, :no_parens, true), []},
+     MapSet.put(dependencies, name)}
+  end
+
+  defp guard_assign(ast, dependencies), do: {ast, dependencies}
 
   defp assign({:render_slot, meta, args}, dependencies, _context) when length(args) in [1, 2],
     do: {slot_call(args, meta), dependencies}

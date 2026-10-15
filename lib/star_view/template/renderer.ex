@@ -8,7 +8,6 @@ defmodule StarView.Template.Renderer do
   alias StarView.Template.Node
   alias StarView.Template.Runtime
 
-  @tag_name ~r/\A[A-Za-z][A-Za-z0-9_.:-]*\z/
   @container_kinds [:branch, :keyed, :fragment]
 
   @doc false
@@ -78,12 +77,20 @@ defmodule StarView.Template.Renderer do
   defp close(open, tag, children, false), do: [open, nodes(children), "</", tag, ?>]
 
   @doc false
-  def tag!(tag) when is_binary(tag) do
-    if !Regex.match?(@tag_name, tag),
+  def tag!(<<first, rest::binary>> = tag) when first in ?A..?Z or first in ?a..?z do
+    if !tag_tail?(rest),
       do: raise(ArgumentError, "invalid tag name: #{inspect(tag)}")
 
     tag
   end
 
   def tag!(tag), do: raise(ArgumentError, "invalid tag name: #{inspect(tag)}")
+
+  defp tag_tail?(<<>>), do: true
+
+  defp tag_tail?(<<character, rest::binary>>)
+       when character in ?A..?Z or character in ?a..?z or character in ?0..?9 or
+              character in ~c"_.:-", do: tag_tail?(rest)
+
+  defp tag_tail?(_name), do: false
 end

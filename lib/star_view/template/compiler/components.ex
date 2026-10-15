@@ -61,17 +61,27 @@ defmodule StarView.Template.Compiler.Components do
   end
 
   defp slot(name, attrs, children, _meta, context) do
-    Attributes.validate!(attrs, context, [":let"])
+    Attributes.validate!(attrs, context, [":let", ":if"])
     slot_name = String.to_atom(name)
     values = Attributes.component(attrs, context)
     content = Compiler.nodes(children, context)
     template = Compiler.template(content, context.fingerprint, context)
     block = inner_block(template, Attributes.directive(attrs, ":let"), context)
 
-    quote do
-      {unquote(slot_name),
-       Map.merge(unquote(values), %{__slot__: unquote(slot_name), inner_block: unquote(block)})}
-    end
+    entry =
+      quote do
+        {unquote(slot_name),
+         Map.merge(unquote(values), %{__slot__: unquote(slot_name), inner_block: unquote(block)})}
+      end
+
+    conditional_slot(entry, slot_name, Attributes.directive(attrs, ":if"), context)
+  end
+
+  defp conditional_slot(entry, _name, nil, _context), do: entry
+
+  defp conditional_slot(entry, name, condition, context) do
+    {condition, _dependencies} = Attributes.expression(condition, context)
+    quote do: if(unquote(condition), do: unquote(entry), else: {unquote(name), nil})
   end
 
   defp inner_block(template, nil, _context),

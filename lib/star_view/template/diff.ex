@@ -21,7 +21,6 @@ defmodule StarView.Template.Diff do
   alias StarView.Template.Renderer
 
   # Ids usable as `#id` without CSS escaping.
-  @safe_id ~r/\A[A-Za-z][A-Za-z0-9_-]*\z/
   @untargetable_tags ["html", "head", "body", "template"]
   # Descendants of these are not reliable `#id` targets: they are foreign
   # content, inert, raw text or not in the document tree.
@@ -52,7 +51,7 @@ defmodule StarView.Template.Diff do
   defp finish(:same, _previous, _next), do: {:ok, []}
 
   defp finish({:patches, targets}, _previous, _next),
-    do: {:ok, targets |> Enum.map(&patch/1) |> Enum.reject(&is_nil/1)}
+    do: {:ok, targets |> Enum.reverse() |> Enum.map(&patch/1) |> Enum.reject(&is_nil/1)}
 
   defp finish(result, previous, next), do: reset(result, same_html?(previous, next))
 
@@ -119,7 +118,7 @@ defmodule StarView.Template.Diff do
   defp combine(_acc, {:dirty, _reason} = dirty), do: dirty
   defp combine(:same, result), do: result
   defp combine(acc, :same), do: acc
-  defp combine({:patches, acc}, {:patches, patches}), do: {:patches, acc ++ patches}
+  defp combine({:patches, acc}, {:patches, patches}), do: {:patches, patches ++ acc}
 
   # Values: own templates are walked, everything else compares rendered HTML.
 
@@ -247,8 +246,20 @@ defmodule StarView.Template.Diff do
 
   # The browser keeps the first of duplicate attributes, so more than one id
   # source makes the element ambiguous.
-  defp single_safe_id([id]) when is_binary(id), do: if(Regex.match?(@safe_id, id), do: id)
+  defp single_safe_id([id]) when is_binary(id), do: if(safe_id?(id), do: id)
   defp single_safe_id(_candidates), do: nil
+
+  defp safe_id?(<<first, rest::binary>>) when first in ?A..?Z or first in ?a..?z,
+    do: safe_id_tail?(rest)
+
+  defp safe_id?(_id), do: false
+  defp safe_id_tail?(<<>>), do: true
+
+  defp safe_id_tail?(<<character, rest::binary>>)
+       when character in ?A..?Z or character in ?a..?z or character in ?0..?9 or
+              character in ~c"_-", do: safe_id_tail?(rest)
+
+  defp safe_id_tail?(_id), do: false
 
   defp id_candidates(attrs), do: Enum.flat_map(attrs, &attribute_ids/1)
 
@@ -313,9 +324,21 @@ defmodule StarView.Template.Diff do
   defp item_key!(other),
     do: raise(ArgumentError, "keyed children must be :fragment nodes, got: #{inspect(other)}")
 
-  defp check_keys(keys), do: check_keys(keys, nil in keys, keys -- Enum.uniq(keys))
+  defp check_keys(keys), do: check_keys(keys, nil in keys)
+  defp check_keys(_keys, true), do: {:reset, :missing_key}
 
-  defp check_keys(_keys, true, _duplicates), do: {:reset, :missing_key}
-  defp check_keys(keys, false, []), do: {:ok, keys}
-  defp check_keys(_keys, false, [key | _rest]), do: {:reset, {:duplicate_key, key}}
+  defp check_keys(keys, false) do
+    case duplicate_key(keys, MapSet.new()) do
+      nil -> {:ok, keys}
+      {:duplicate, key} -> {:reset, {:duplicate_key, key}}
+    end
+  end
+
+  defp duplicate_key([], _seen), do: nil
+
+  defp duplicate_key([key | rest], seen) do
+    if MapSet.member?(seen, key),
+      do: {:duplicate, key},
+      else: duplicate_key(rest, MapSet.put(seen, key))
+  end
 end

@@ -62,6 +62,23 @@ controls in small native subtrees. `patch_element/3` does not automatically keep
 prior templates or choose diffs across independent requests. An offline diff is
 potential, not an enabled application saving.
 
+Use actual component trees and transitions when judging adoption. Compare against
+the application's existing targeted patches as well as whole-page rendering.
+Measure render/encoding, diff planning and SSE framing separately; count queries
+that occur during rendering. Repeat the HEEx baseline and report reductions
+alongside noisy wall times. Reachable term words for HEEx closures and native
+trees are not equivalent memory measurements. Compression estimates are not
+proof of production SSE encoding. Generated request IDs, CSRF and other volatile
+fields must remain in actual patch measurements; do not suppress them in the
+library to create a saving. Native rendering improvements do not enable retained
+baselines or skipped binding evaluation.
+
+In 0.6.1, the compiler adds case/cond clauses, guard-safe assigns and conditional
+named slots, and fixes parser comments/compile-only hints. Its render/diff hot
+paths are faster than 0.6.0; the representation can still cost more than HEEx.
+Verify these APIs in the installed source and read the benchmark limitations in
+`guides/examples/star_templates.md` before recommending a broader migration.
+
 The current parser adapter requires exactly LiveView 1.2.12. The compiler rejects
 unsupported constructs rather than guessing their meaning. Read
 `guides/examples/star_templates.md` in the matching SDK source. Do not widen this
