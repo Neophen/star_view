@@ -45,8 +45,13 @@ for the controller/backend model and the inspiration from Jacob O'Bryant's Biff.
 StarView 0.6.0 adds optional [coalesced reactive rendering](guides/examples/reactive_rendering.md)
 to the existing stream lifecycle.
 
+Unreleased work compiles static HTML and evaluated values into native rendering
+programs. Compiled-tree inspection uses `Template.nodes/1`; the planner still
+materializes both trees. Read the [representation and performance notes](guides/examples/star_templates.md#compiled-rendering-unreleased)
+before upgrading experimental callers.
+
 The separate experimental [STAR template compiler](guides/examples/star_templates.md)
-uses `~STAR` and a StarView-owned tree for initial HTML and selected element
+uses `~STAR` and a StarView-owned representation for initial HTML and selected element
 patches. It currently requires the tested LiveView 1.2.12 parser adapter.
 Opt-in [checked events](guides/core/checked_events.md) validate literal local
 helpers such as `post("save")` against the actual handler names and methods.

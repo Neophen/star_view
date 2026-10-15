@@ -18,6 +18,7 @@ defmodule StarView.Template.Diff do
   alias StarView.Template.HTML
   alias StarView.Template.Node
   alias StarView.Template.Patch
+  alias StarView.Template.Program
   alias StarView.Template.Renderer
 
   # Ids usable as `#id` without CSS escaping.
@@ -34,8 +35,13 @@ defmodule StarView.Template.Diff do
   def diff(%Template{fingerprint: previous}, %Template{fingerprint: next}) when previous != next,
     do: {:reset, :template_changed}
 
-  def diff(%Template{} = previous, %Template{} = next),
-    do: previous |> compare_template(next) |> finish(previous, next)
+  def diff(%Template{} = previous, %Template{} = next) do
+    previous = Program.template(previous)
+    next = Program.template(next)
+    previous |> compare_template(next) |> finish(previous, next)
+  rescue
+    StarView.Template.StaleProgramError -> {:reset, :template_changed}
+  end
 
   def diff(previous, next) do
     raise ArgumentError,

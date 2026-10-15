@@ -15,6 +15,9 @@ defmodule StarView.Template.Node do
   `:text` values and `{:static, ...}` attribute values are compiler output and
   must already be entity-escaped source. They are never escaped again.
 
+  Compiled branch/collection children may hold internal programs before
+  materialization. `StarView.Template.nodes/1` expands those into ordinary nodes.
+
   ## Element meta
 
     * `:void?` - `true` for void elements such as `<br>`; they render no
@@ -47,13 +50,15 @@ defmodule StarView.Template.Node do
           | {:dynamic, String.t(), term()}
           | {:spread, keyword() | map()}
 
+  @type child :: t() | StarView.Template.Program.t()
+
   @type t :: %__MODULE__{
           kind: kind(),
           tag: String.t() | nil,
           value: term(),
           key: term(),
           attrs: [attr()],
-          children: [t()],
+          children: [child()],
           meta: map()
         }
 
@@ -68,21 +73,21 @@ defmodule StarView.Template.Node do
   def value(value, meta \\ %{}), do: %__MODULE__{kind: :value, value: value, meta: meta}
 
   @doc "Builds an `:element` node."
-  @spec element(String.t(), [attr()], [t()], map()) :: t()
+  @spec element(String.t(), [attr()], [child()], map()) :: t()
   def element(tag, attrs \\ [], children \\ [], meta \\ %{}) when is_binary(tag),
     do: %__MODULE__{kind: :element, tag: tag, attrs: attrs, children: children, meta: meta}
 
   @doc "Builds a `:branch` node for the chosen branch `key`."
-  @spec branch(term(), [t()], map()) :: t()
+  @spec branch(term(), [child()], map()) :: t()
   def branch(key, children, meta \\ %{}),
     do: %__MODULE__{kind: :branch, key: key, children: children, meta: meta}
 
   @doc "Builds a `:keyed` node from `:fragment` items."
-  @spec keyed([t()], map()) :: t()
+  @spec keyed([child()], map()) :: t()
   def keyed(items, meta \\ %{}), do: %__MODULE__{kind: :keyed, children: items, meta: meta}
 
   @doc "Builds a `:fragment` node, optionally keyed for item identity."
-  @spec fragment([t()], term(), map()) :: t()
+  @spec fragment([child()], term(), map()) :: t()
   def fragment(children, key \\ nil, meta \\ %{}),
     do: %__MODULE__{kind: :fragment, key: key, children: children, meta: meta}
 

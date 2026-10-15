@@ -2,12 +2,10 @@ defmodule StarView.Bench.TemplateRender do
   @moduledoc """
   Reproduce rendering costs without a database or running web server.
   Run: mix run --no-start bench/template_render.exs
-  STARVIEW_BENCH_SAMPLES controls samples; STARVIEW_BENCH_BASELINE defaults to v0.6.0.
+  STARVIEW_BENCH_SAMPLES controls samples. Measures the current compiler, with HEEx repeated.
   """
   import Phoenix.Component
   import StarView.Template.Sigils
-
-  @files ~w(html renderer runtime diff)
 
   def heex(assigns) do
     ~H"""
@@ -32,25 +30,11 @@ defmodule StarView.Bench.TemplateRender do
   end
 
   def run() do
-    Code.compiler_options(ignore_module_conflict: true)
     samples = System.get_env("STARVIEW_BENCH_SAMPLES", "1000") |> String.to_integer()
-    baseline = System.get_env("STARVIEW_BENCH_BASELINE", "v0.6.0")
-    working = Enum.map(@files, &{path(&1), File.read!(path(&1))})
     Enum.each([10, 100, 1000], &measure(:heex, &1, "HEEx", samples))
-    Enum.each(@files, &load_baseline(&1, baseline))
-    Enum.each([10, 100, 1000], &measure(:star, &1, baseline, samples))
-    Enum.each(working, &restore/1)
-    Enum.each([10, 100, 1000], &measure(:star, &1, "working", samples))
+    Enum.each([10, 100, 1000], &measure(:star, &1, "compiled", samples))
+    Enum.each([10, 100, 1000], &measure(:heex, &1, "HEEx_repeat", samples))
   end
-
-  defp path(name), do: "lib/star_view/template/#{name}.ex"
-
-  defp load_baseline(name, ref) do
-    {source, 0} = System.cmd("git", ["show", "#{ref}:#{path(name)}"])
-    Code.compile_string(source, path(name))
-  end
-
-  defp restore({path, source}), do: Code.compile_string(source, path)
 
   defp measure(function, count, variant, samples) do
     rows =

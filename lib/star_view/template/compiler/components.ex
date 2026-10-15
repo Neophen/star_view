@@ -40,7 +40,30 @@ defmodule StarView.Template.Compiler.Components do
     named = named |> Enum.with_index() |> Enum.map(&named_slot(&1, context))
     inner = default_slot(content, default_pattern, context)
     entries = [inner | named]
-    quote do: StarView.Template.Runtime.slots(unquote(entries))
+    slot_entries(entries, literal_slots?(entries))
+  end
+
+  defp literal_slots?(entries) do
+    Enum.all?(entries, &literal_slot?/1) and
+      entries |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> length() == length(entries)
+  end
+
+  defp literal_slot?({name, _value}) when is_atom(name), do: true
+  defp literal_slot?(_entry), do: false
+
+  defp slot_entries(entries, false),
+    do: quote(do: StarView.Template.Runtime.slots(unquote(entries)))
+
+  defp slot_entries(entries, true) do
+    {bindings, fields} = Enum.map_reduce(entries, [], &slot_binding/2)
+    {:__block__, [], bindings ++ [{:%{}, [], Enum.reverse(fields)}]}
+  end
+
+  defp slot_binding({name, entry}, fields) do
+    value = if is_nil(entry), do: [], else: [entry]
+    variable = Macro.unique_var(:slot_value, __MODULE__)
+    binding = quote generated: true, do: unquote(variable) = unquote(value)
+    {binding, [{name, variable} | fields]}
   end
 
   defp named_slot?({:block, :slot, _, _, _, _, _}), do: true

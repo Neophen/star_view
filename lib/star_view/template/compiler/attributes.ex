@@ -27,9 +27,22 @@ defmodule StarView.Template.Compiler.Attributes do
   def component(attrs, context) do
     entries = Enum.map(ordinary(attrs), &component_attribute(&1, context))
 
-    quote do
-      StarView.Template.Runtime.component_assigns(unquote(entries))
-    end
+    component_entries(entries, Enum.any?(entries, &match?({:spread, _}, &1)))
+  end
+
+  defp component_entries(entries, true),
+    do: quote(do: StarView.Template.Runtime.component_assigns(unquote(entries)))
+
+  defp component_entries(entries, false) do
+    {bindings, fields} = Enum.map_reduce(entries, [], &component_binding/2)
+    fields = fields |> Enum.uniq_by(&elem(&1, 0)) |> Enum.reverse()
+    {:__block__, [], bindings ++ [{:%{}, [], fields}]}
+  end
+
+  defp component_binding({name, expression}, fields) do
+    variable = Macro.unique_var(:component_value, __MODULE__)
+    binding = quote generated: true, do: unquote(variable) = unquote(expression)
+    {binding, [{name, variable} | fields]}
   end
 
   defp directive?({":" <> _, _, _}), do: true

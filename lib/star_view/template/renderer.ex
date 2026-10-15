@@ -6,12 +6,17 @@ defmodule StarView.Template.Renderer do
   alias StarView.Template
   alias StarView.Template.HTML
   alias StarView.Template.Node
+  alias StarView.Template.Program
   alias StarView.Template.Runtime
 
   @container_kinds [:branch, :keyed, :fragment]
 
   @doc false
-  def to_iodata(%Template{nodes: nodes}), do: nodes(nodes)
+  def to_iodata(%Template{} = template),
+    do: template |> Template.representation!() |> representation()
+
+  defp representation({:nodes, nodes}), do: nodes(nodes)
+  defp representation({:program, program}), do: Program.render(program)
 
   @doc false
   def nodes(nodes) when is_list(nodes), do: Enum.map(nodes, &node/1)
@@ -30,6 +35,8 @@ defmodule StarView.Template.Renderer do
 
   def node(%Node{kind: kind, children: children}) when kind in @container_kinds,
     do: nodes(children)
+
+  def node(%Program{} = program), do: Program.render(program)
 
   def node(other), do: raise(ArgumentError, "invalid template node: #{inspect(other)}")
 

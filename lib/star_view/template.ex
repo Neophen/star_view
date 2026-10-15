@@ -1,13 +1,18 @@
 defmodule StarView.Template do
   @moduledoc """
-  StarView's own template representation: an evaluated tree of
-  `StarView.Template.Node`s that renders to HTML and diffs into element patches.
+  StarView's own template representation, rendering to HTML and diffing into
+  element patches. Compiled templates hold a `StarView.Template.Program` with
+  evaluated values. Hand-built templates hold `StarView.Template.Node` trees.
 
-  This is a foundation. A template snapshot holds already-evaluated values, so
-  building one still runs every expression; `diff/2` saves bytes on the wire,
-  not render CPU.
+  A snapshot holds already-evaluated values. Building one runs every chosen
+  expression exactly once. Compiled rendering merges static markup; `diff/2`
+  materializes both trees and can cost more than rendering a bounded region.
+  It saves bytes on the wire, not database reads or expression evaluation.
 
   ## Rendering
+
+  Compiled templates have `nodes: nil`; use `nodes/1` to inspect their tree.
+  A template must hold either nodes or a compiled program, never both.
 
   `to_html/1` and `to_iodata/1` render server-side HTML. Static text and static
   attribute values are trusted compiler output and emitted verbatim. Dynamic
@@ -63,9 +68,15 @@ defmodule StarView.Template do
   alias StarView.Template.Diff
   alias StarView.Template.Node
   alias StarView.Template.Patch
+  alias StarView.Template.Program
   alias StarView.Template.Renderer
 
-  @type t :: %__MODULE__{fingerprint: binary(), nodes: [Node.t()], source: map()}
+  @type t :: %__MODULE__{
+          fingerprint: binary() | nil,
+          nodes: [Node.t() | Program.t()] | nil,
+          program: Program.t() | nil,
+          source: map()
+        }
 
   @type reset_reason ::
           :initial
@@ -74,7 +85,7 @@ defmodule StarView.Template do
           | {:duplicate_key, term()}
           | {:unaddressable, atom()}
 
-  defstruct fingerprint: nil, nodes: [], source: %{}
+  defstruct fingerprint: nil, nodes: [], program: nil, source: %{}
 
   @doc "Renders the template to HTML iodata."
   @spec to_iodata(t()) :: iodata()
@@ -83,6 +94,31 @@ defmodule StarView.Template do
   @doc "Renders the template to an HTML binary."
   @spec to_html(t()) :: String.t()
   def to_html(%__MODULE__{} = template), do: template |> to_iodata() |> IO.iodata_to_binary()
+
+  @doc """
+  Returns the template as a fully expanded `StarView.Template.Node` list.
+
+  Compiled templates hold a `StarView.Template.Program` and `nodes: nil`; this
+  builds their tree from already-evaluated values without running template
+  expressions again. Nested native templates under `:value` and `:component`
+  nodes, including lists of them, are expanded too.
+  """
+  @spec nodes(t()) :: [Node.t()]
+  def nodes(%__MODULE__{} = template), do: Program.template(template).nodes
+
+  @doc false
+  def representation!(%__MODULE__{nodes: nil, program: nil}),
+    do: raise(ArgumentError, "a StarView.Template needs either nodes or a compiled program")
+
+  def representation!(%__MODULE__{nodes: nodes, program: nil}), do: {:nodes, nodes}
+  def representation!(%__MODULE__{nodes: nil, program: program}), do: {:program, program}
+
+  def representation!(%__MODULE__{}),
+    do:
+      raise(
+        ArgumentError,
+        "ambiguous StarView.Template: set either nodes or a compiled program, not both"
+      )
 
   @doc """
   Diffs the `previous` snapshot against `next`.
