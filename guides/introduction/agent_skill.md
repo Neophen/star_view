@@ -40,4 +40,4 @@ application-specific configuration. Update it alongside API changes so a
 copied version explains the guarantees of its matching SDK.
 
 The bundled skill and checked-event additions require StarView 0.6.0 or later.
-Use `{:star_view, "~> 0.6.0"}` for this release; they are absent from 0.5.0.
+Use `{:star_view, "~> 0.6.1"}` for this release; they are absent from 0.5.0.

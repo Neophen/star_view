@@ -67,7 +67,7 @@ must enforce their allowed methods; GET remains read-only.
 ```elixir
 def deps do
   [
-    {:star_view, "~> 0.6.0"}
+    {:star_view, "~> 0.6.1"}
   ]
 end
 ```

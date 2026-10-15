@@ -35,6 +35,11 @@ optional `StarView.Page`, `StarView.Component` and `StarView.Router` surface.
 Follow [pages, streams and components](guides/phoenix/pages.md). Existing
 controller entrypoints remain supported.
 
+Version 0.6.1 improves experimental `~STAR` rendering and common template syntax.
+The [native-template guide](guides/examples/star_templates.md#rendering-performance-in-061)
+includes measured builder, schedule and film workloads and explains why smaller
+patches, rendering speed and retained-baseline costs need separate evaluation.
+
 Start with [Thinking in Phoenix, Datastar and StarView](guides/introduction/mental_model.md)
 for the controller/backend model and the inspiration from Jacob O'Bryant's Biff.
 StarView 0.6.0 adds optional [coalesced reactive rendering](guides/examples/reactive_rendering.md)
@@ -101,7 +106,7 @@ For manual installation:
 
 ```elixir
 def deps do
-  [{:star_view, "~> 0.6.0"}]
+  [{:star_view, "~> 0.6.1"}]
 end
 ```
 
