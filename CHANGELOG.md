@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.0
 
 ### Changed
 
@@ -18,6 +18,11 @@
 - Diff materializes both trees and keeps the existing conservative patch rules.
   Missing compiled programs after reload reset the baseline. No expressions,
   authorization or data reads are skipped, and no connection process is added.
+
+### Added
+
+- CI checks compile, tests, formatting and documentation on the minimum supported
+  Elixir/OTP pair and Octafest's current pair.
 
 ### Fixed
 

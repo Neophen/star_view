@@ -45,9 +45,9 @@ for the controller/backend model and the inspiration from Jacob O'Bryant's Biff.
 StarView 0.6.0 adds optional [coalesced reactive rendering](guides/examples/reactive_rendering.md)
 to the existing stream lifecycle.
 
-Unreleased work compiles static HTML and evaluated values into native rendering
+Version 0.7.0 compiles static HTML and evaluated values into native rendering
 programs. Compiled-tree inspection uses `Template.nodes/1`; the planner still
-materializes both trees. Read the [representation and performance notes](guides/examples/star_templates.md#compiled-rendering-unreleased)
+materializes both trees. Read the [representation and performance notes](guides/examples/star_templates.md#compiled-rendering-in-070)
 before upgrading experimental callers.
 
 The separate experimental [STAR template compiler](guides/examples/star_templates.md)
@@ -111,7 +111,7 @@ For manual installation:
 
 ```elixir
 def deps do
-  [{:star_view, "~> 0.6.1"}]
+  [{:star_view, "~> 0.7.0"}]
 end
 ```
 

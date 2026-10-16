@@ -2,7 +2,7 @@
 
 `~STAR` compiles familiar HEEx syntax into **StarView's own template representation**.
 The result is a `StarView.Template`; it does not wrap a `Phoenix.LiveView.Rendered`.
-The unreleased compiled renderer holds merged static markup in generated code
+The 0.7.0 compiled renderer holds merged static markup in generated code
 and already-evaluated values in a tuple. Its equivalent `StarView.Template.Node`
 tree is built only when inspection or patch planning needs it.
 
@@ -114,7 +114,7 @@ updates an application actually emits. `patch_element/3` does not retain a prior
 native tree or automatically choose diffs between independent requests. Use a
 bounded, authorized baseline only when the existing lifecycle needs one.
 
-## Compiled rendering (unreleased)
+## Compiled rendering in 0.7.0
 
 The compiler uses Phoenix's parser once during compilation. Adding another HTML
 parser at runtime would not remove the previous renderer's repeated tree walk.
@@ -172,7 +172,7 @@ use 29–53% fewer reductions than 0.6.1 with the compiled renderer. Rendering w
 is 0.922–1.007 times the first HEEx baseline. Wall times remain noisy on the
 shared host; these figures do not prove a universal latency win.
 
-| Render + encode | HEEx first / repeat | 0.6.1 | Candidate |
+| Render + encode | HEEx first / repeat | 0.6.1 | 0.7.0 |
 | --- | ---: | ---: | ---: |
 | Builder canvas | 4.15 / 3.61 ms | 4.10 ms | 2.89 ms |
 | Schedule workspace | 5.04 / 6.25 ms | 7.90 ms | 6.24 ms |
