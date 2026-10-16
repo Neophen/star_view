@@ -49,3 +49,21 @@ end
 Use `StarView.Actions.delete/3` for generated event URLs when no custom client
 options are needed. For a read-only GET, omit `csrf` with the same filter; no
 CSRF header is needed. See [action routing](actions.md) for method checks.
+
+## Verify the transport in Phoenix tests
+
+`Phoenix.ConnTest.build_conn/0` and `recycle/1` disable CSRF protection by default.
+A passing POST alone therefore does not prove that a filtered request retained
+its token. Re-enable protection after the final recycle in tests of this boundary:
+
+```elixir
+conn =
+  conn
+  |> Phoenix.ConnTest.recycle()
+  |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+```
+
+Send the token through the channel the browser uses, such as the JSON `csrf`
+signal without an extra CSRF header. Check that this request succeeds and that
+the same request without its token is rejected before SSE starts. Retain the
+application's normal session, parser and browser pipeline in that check.
