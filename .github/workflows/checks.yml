@@ -39,6 +39,8 @@ jobs:
       - run: mix compile --warnings-as-errors
         env:
           MIX_ENV: test
+      # Igniter exercises generated Phoenix projects in the installer suite.
+      - run: mix archive.install hex phx_new 1.8.15 --force
       - run: mix test
       - run: mix format --check-formatted
       - run: mix docs --warnings-as-errors
