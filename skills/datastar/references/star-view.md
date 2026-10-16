@@ -20,6 +20,12 @@ through patches; do not start SSE again or call HTTP status/render helpers after
 streaming begins. Keep the Plug conn in its request process. Capture minimal
 actor/tenant/locale values explicitly for background work.
 
+When rejecting a polling or live refresh after access is revoked, stop its
+recurring activity as well. Use the existing SDK to redirect or replace the
+bounded polling root without its interval. An empty SSE reply can be protocol-safe
+while leaving a stale page polling indefinitely. Test granted access followed by
+revocation, not only a user who never had access.
+
 `StarView.Signals.fetch/2` returns the updated conn with success or failure after
 reading a body. Do not discard it. Use SDK framing, signal parsing, action
 encoding and disconnect handling instead of building a parallel transport.
