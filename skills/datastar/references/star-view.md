@@ -31,6 +31,11 @@ reading a body. Do not discard it. Use SDK framing, signal parsing, action
 encoding and disconnect handling instead of building a parallel transport.
 `:opts` is trusted developer JavaScript, not submitted values.
 
+Phoenix request tests disable CSRF on `build_conn` and `recycle` by default.
+When checking this transport, re-enable it after the final recycle with
+`Plug.Conn.put_private(:plug_skip_csrf_protection, false)`. Prove that the browser's
+token channel succeeds and a missing token is rejected before SSE starts.
+
 ## Native STAR templates
 
 `~STAR` is an experimental, opt-in compiler. It returns `StarView.Template`,
