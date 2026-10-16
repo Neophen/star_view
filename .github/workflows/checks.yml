@@ -34,13 +34,13 @@ jobs:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('mix.lock') }}
+          key: with-phoenix-generator-${{ runner.os }}-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('mix.lock') }}
+      # Igniter conditionally compiles generator support when its dependencies build.
+      - run: mix archive.install hex phx_new 1.8.15 --force
       - run: mix deps.get --check-locked
       - run: mix compile --warnings-as-errors
         env:
           MIX_ENV: test
-      # Igniter exercises generated Phoenix projects in the installer suite.
-      - run: mix archive.install hex phx_new 1.8.15 --force
       - run: mix test
       - run: mix format --check-formatted
       - run: mix docs --warnings-as-errors
