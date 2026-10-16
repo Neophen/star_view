@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.7.0
+## v0.7.0 — 2026-10-16
 
 ### Changed
 
@@ -21,8 +21,9 @@
 
 ### Added
 
-- CI checks compile, tests, formatting and documentation on the minimum supported
-  Elixir/OTP pair and Octafest's current pair.
+- CI checks compile, tests, documentation and package assembly on the minimum
+  supported Elixir/OTP pair and Octafest's current pair, using the current
+  toolchain for canonical formatting.
 
 ### Fixed
 
