@@ -36,7 +36,7 @@ Follow [pages, streams and components](guides/phoenix/pages.md). Existing
 controller entrypoints remain supported.
 
 Version 0.6.1 improves experimental `~STAR` rendering and common template syntax.
-The [native-template guide](guides/examples/star_templates.md#rendering-performance-in-061)
+The [native-template guide](https://hexdocs.pm/star_view/0.7.0/star_templates.html#rendering-performance-in-0-6-1)
 includes measured builder, schedule and film workloads and explains why smaller
 patches, rendering speed and retained-baseline costs need separate evaluation.
 
@@ -47,7 +47,7 @@ to the existing stream lifecycle.
 
 Version 0.7.0 compiles static HTML and evaluated values into native rendering
 programs. Compiled-tree inspection uses `Template.nodes/1`; the planner still
-materializes both trees. Read the [representation and performance notes](guides/examples/star_templates.md#compiled-rendering-in-070)
+materializes both trees. Read the [representation and performance notes](https://hexdocs.pm/star_view/0.7.0/star_templates.html#compiled-rendering-in-0-7-0)
 before upgrading experimental callers.
 
 The separate experimental [STAR template compiler](guides/examples/star_templates.md)
