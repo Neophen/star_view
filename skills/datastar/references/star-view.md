@@ -66,8 +66,13 @@ Use actual component trees and transitions when judging adoption. Compare agains
 the application's existing targeted patches as well as whole-page rendering.
 Measure render/encoding, diff planning and SSE framing separately; count queries
 that occur during rendering. Repeat the HEEx baseline and report reductions
-alongside noisy wall times. Reachable term words for HEEx closures and native
-trees are not equivalent memory measurements. Compression estimates are not
+alongside noisy wall times. HEEx work can run during HTML encoding, so trace
+queries across rendering and encoding together. Prepare shared navigation or
+permission-dependent presentation once for the fragments emitted in one reply;
+recompute it from trusted context on later requests instead of retaining a stale
+connection assign or global cache. Action authorization still runs independently.
+Reachable term words for HEEx closures and native trees are not equivalent
+memory measurements. Compression estimates are not
 proof of production SSE encoding. Generated request IDs, CSRF and other volatile
 fields must remain in actual patch measurements; do not suppress them in the
 library to create a saving. Native rendering improvements do not enable retained
