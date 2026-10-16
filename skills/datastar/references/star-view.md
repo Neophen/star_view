@@ -54,6 +54,13 @@ the native subtree still cannot consume HEEx. Keep that boundary explicit and
 describe a partially native screen accurately. It avoids migrating every shared
 shell merely to check one page's event references.
 
+Preserve form submission when extracting checked controls: keep a submit button
+and handle the form's submit event so browser validation, Enter and
+`requestSubmit()` still work. A click-only request bypasses that contract. If a
+listener must live on a child control, scope it to its owning form before
+preventing navigation; do not cancel unrelated forms. Put the indicator on the
+request source and verify cleanup after the subtree is replaced.
+
 Every binding still evaluates on each template invocation. Dependency metadata
 does not currently skip rendering or database reads. There is no new GenServer
 runtime or automatic update scheduler. Browser-owned, ignored and foreign-content
