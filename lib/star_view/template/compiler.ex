@@ -2,6 +2,7 @@ defmodule StarView.Template.Compiler do
   @moduledoc false
 
   alias StarView.Template.Compiler.Nodes
+  alias StarView.Template.Compiler.Programs
   alias StarView.Template.PhoenixParser
 
   def compile(source, caller, meta) do
@@ -27,10 +28,13 @@ defmodule StarView.Template.Compiler do
     do: Nodes.compile(node, %{context | path: context.path ++ [index]})
 
   def template(nodes, fingerprint, context) do
+    program = Programs.compile(nodes, context)
+
     quote do
       %StarView.Template{
         fingerprint: unquote(fingerprint),
-        nodes: unquote(nodes),
+        nodes: nil,
+        program: unquote(program),
         source: unquote(Macro.escape(Map.take(context, [:file, :line, :module, :function])))
       }
     end
@@ -39,7 +43,7 @@ defmodule StarView.Template.Compiler do
   def node(kind, fields, context, meta \\ %{}) do
     entries = [kind: kind, meta: Macro.escape(metadata(context, meta))] ++ fields
 
-    {:%, [line: Map.get(meta, :line, context.line)],
+    {:%, [line: Map.get(meta, :line, context.line), star_node: true],
      [StarView.Template.Node, {:%{}, [], entries}]}
   end
 
@@ -82,5 +86,5 @@ defmodule StarView.Template.Compiler do
   end
 
   defp fingerprint(source, caller),
-    do: :crypto.hash(:sha256, :erlang.term_to_binary({1, caller.module, caller.function, source}))
+    do: :crypto.hash(:sha256, :erlang.term_to_binary({2, caller.module, caller.function, source}))
 end

@@ -15,6 +15,9 @@ defmodule StarView.Template.Compiler.Elements do
     children_context = child_context(name, element_context)
     meta = Map.put(meta, :void?, name in @void or meta[:closing] == :void)
 
+    if meta[:void?] and children != [],
+      do: Compiler.error!("void element <#{name}> cannot have children", context, meta)
+
     fields = [
       tag: name,
       attrs: Attributes.html(attrs, context),

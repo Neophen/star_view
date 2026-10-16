@@ -3,6 +3,7 @@ defmodule StarView.Template.Runtime do
 
   alias StarView.Template
   alias StarView.Template.Node
+  alias StarView.Template.Program
 
   @legacy_types [
     Phoenix.LiveView.Rendered,
@@ -74,11 +75,14 @@ defmodule StarView.Template.Runtime do
     do: Map.put(assigns, name, value)
 
   def keyed(children, meta) do
-    keys = Enum.map(children, & &1.key)
+    keys = Enum.map(children, &child_key/1)
     ensure_present_keys!(keys)
     ensure_unique_keys!(keys)
     %Node{kind: :keyed, children: children, meta: meta}
   end
+
+  defp child_key(%Program{} = program), do: Program.node_key(program)
+  defp child_key(child), do: child.key
 
   defp ensure_present_keys!(keys) do
     if nil in keys, do: raise(ArgumentError, "~STAR :key values must not be nil")

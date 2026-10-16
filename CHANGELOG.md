@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.7.0 — 2026-10-16
+
+### Changed
+
+- Compile native templates into merged static HTML and evaluated value tuples,
+  with hidden named rendering programs that do not pin old module code.
+  Reuse the existing escaping/validation for dynamic values and spreads.
+- Build component assigns and unconditional unique slots as maps; pre-escape
+  literal class prefixes and fixed binary-attribute portions without caching
+  submitted or runtime HTML. Binary operands all evaluate before type validation,
+  preserving failure-side effects before later template content.
+- **Experimental representation change:** compiled `Template.nodes` is now nil.
+  Use `Template.nodes/1` for the evaluated tree. Hand-built node trees remain
+  supported. Recompile native callers when upgrading; snapshots are not a
+  transport/storage format.
+- Diff materializes both trees and keeps the existing conservative patch rules.
+  Missing compiled programs after reload reset the baseline. No expressions,
+  authorization or data reads are skipped, and no connection process is added.
+
+### Added
+
+- CI checks compile, tests, documentation and package assembly on the minimum
+  supported Elixir/OTP pair and Octafest's current pair, using the current
+  toolchain for canonical formatting.
+
+### Fixed
+
+- Keep function-local aliases in evaluated keys, reject void children during
+  compilation, and preserve moduleless template evaluation.
+
 ## v0.6.1
 
 ### Added

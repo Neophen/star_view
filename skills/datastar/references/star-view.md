@@ -79,6 +79,22 @@ paths are faster than 0.6.0; the representation can still cost more than HEEx.
 Verify these APIs in the installed source and read the benchmark limitations in
 `guides/examples/star_templates.md` before recommending a broader migration.
 
+The 0.7.0 compiled renderer replaces eager node construction with merged
+static markup and evaluated value tuples, including compile-time escaping of
+fixed text inside interpolated attributes. Compiled templates have `nodes: nil`;
+use `StarView.Template.nodes/1` when that API is installed. Hand-built trees still
+validate normally. Recompile all native helpers after upgrading; do not pass
+old snapshots across releases. Generated external program captures support code
+reloads; a removed program resets diffing, including nested component changes.
+Moduleless or late-hook programs and arbitrary closure values retain ordinary
+local-function lifetime limits.
+
+Faster rendering does not imply faster diffing: the current planner materializes
+both trees. Compare complete render/diff/framing costs against bounded patches.
+Do not add a Rust NIF from a microbenchmark alone; first identify a substantial
+bulk hotspot and include term conversion, allocation and scheduler costs.
+These changes require 0.7.0 and are absent from 0.6.1. Check installed APIs before use.
+
 The current parser adapter requires exactly LiveView 1.2.12. The compiler rejects
 unsupported constructs rather than guessing their meaning. Read
 `guides/examples/star_templates.md` in the matching SDK source. Do not widen this

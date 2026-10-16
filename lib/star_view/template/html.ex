@@ -15,11 +15,32 @@ defmodule StarView.Template.HTML do
   @nested_prefixes ["aria", "data", "phx"]
 
   @doc false
+  if Code.ensure_loaded?(Phoenix.HTML) do
+    # A binary cannot contain a legacy template. Bind the public API directly
+    # when installed; Plug-only hosts retain the dependency diagnostic below.
+    def escape(value) when is_binary(value) do
+      {:safe, iodata} = Phoenix.HTML.html_escape(value)
+      iodata
+    end
+  end
+
   def escape(value) do
     Runtime.reject_legacy!(value)
     {:safe, iodata} = phoenix_html!(:html_escape, [value])
     iodata
   end
+
+  @doc false
+  def binary_part!(value) when is_binary(value), do: value
+
+  def binary_part!(value) do
+    Runtime.reject_legacy!(value)
+    raise ArgumentError, "compiled ~STAR binary attribute parts must be binaries"
+  end
+
+  @doc false
+  def escape_binary_part(value) when is_binary(value), do: escape(value)
+  def escape_binary_part(value), do: binary_part!(value)
 
   @doc false
   def attributes(attrs) when is_list(attrs), do: Enum.map(attrs, &attribute/1)
@@ -55,6 +76,30 @@ defmodule StarView.Template.HTML do
   def flatten_spread(attrs),
     do:
       raise(ArgumentError, "expected spread attributes as a list or map, got: #{inspect(attrs)}")
+
+  @doc false
+  def compiled_attribute(_name, %StarView.Template{}),
+    do: raise(ArgumentError, "a StarView.Template cannot be used as an attribute value")
+
+  # Names here are literal compiler-validated source, owned by executable code.
+  # Spreads and nested names still pass through the ordinary runtime validator.
+  def compiled_attribute(name, value), do: dynamic(name, value)
+
+  @doc false
+  def compiled_class(escaped_prefix, tail) when is_list(tail),
+    do: [~s( class="), escaped_prefix, class_tail(class_list(tail, [])), ?"]
+
+  def compiled_class(_prefix, _tail),
+    do: raise(ArgumentError, "invalid compiled ~STAR class values")
+
+  @doc false
+  def compiled_class_value(prefix, tail) when is_list(tail), do: prefix ++ tail
+
+  def compiled_class_value(_prefix, _tail),
+    do: raise(ArgumentError, "invalid compiled ~STAR class values")
+
+  defp class_tail([]), do: []
+  defp class_tail(tail), do: [?\s, tail |> IO.iodata_to_binary() |> escape()]
 
   # HEEx encodes `class` and `style` itself and always emits them.
   defp dynamic("class", value), do: [~s( class="), class_value(value), ?"]

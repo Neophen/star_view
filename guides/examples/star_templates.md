@@ -1,9 +1,10 @@
 # STAR Templates (Experimental)
 
-`~STAR` compiles familiar HEEx syntax into **StarView's own template tree**.
-The result is a `StarView.Template`, containing `StarView.Template.Node`
-elements, values, branches, collections and components. It does not wrap a
-`Phoenix.LiveView.Rendered` as its native representation.
+`~STAR` compiles familiar HEEx syntax into **StarView's own template representation**.
+The result is a `StarView.Template`; it does not wrap a `Phoenix.LiveView.Rendered`.
+The 0.7.0 compiled renderer holds merged static markup in generated code
+and already-evaluated values in a tuple. Its equivalent `StarView.Template.Node`
+tree is built only when inspection or patch planning needs it.
 
 This is the first compiler proof, not a new page process or a complete HEEx
 replacement. Existing StarView controllers and Page APIs are unchanged.
@@ -113,6 +114,82 @@ updates an application actually emits. `patch_element/3` does not retain a prior
 native tree or automatically choose diffs between independent requests. Use a
 bounded, authorized baseline only when the existing lifecycle needs one.
 
+## Compiled rendering in 0.7.0
+
+The compiler uses Phoenix's parser once during compilation. Adding another HTML
+parser at runtime would not remove the previous renderer's repeated tree walk.
+Like HEEx, compiled STAR now merges static markup and processes dynamic values
+at runtime. It also pre-escapes fixed portions of binary interpolation and
+concatenation in attributes, rather than rebuilding and scanning long JavaScript
+strings for every row. It retains its own native type, checked events and conservative HTML
+patch planner.
+
+A `StarView.Template.Program` holds a generated `run/2` function and an evaluated
+value tuple. One skeleton generates its HTML and tree clauses. Static structure
+lives in code, so there is no mutable `trusted?` flag or HTML cache that can drift
+from a public node tree. Dynamic values are still escaped on every encoding;
+spread and nested attribute names are validated at runtime. Chosen expressions
+run once in source order during construction, including keys before item bodies.
+Rendering, inspection and diffing do not rerun them.
+
+Compiled templates have `nodes: nil`. Read their tree with:
+
+```elixir
+nodes = StarView.Template.nodes(template)
+```
+
+Hand-built `%Template{nodes: [...]}` values still use the fully validated tree
+renderer. Setting both `nodes` and `program` raises. This is an experimental
+representation change after 0.6.1; recompile the application and its native
+helpers when upgrading. Native snapshots are ordinary server values, not a
+serialization or persistence format.
+
+Module programs use hidden exported functions with stable names derived from
+their skeleton. External captures do not pin old module code. Recompiling an
+unchanged program preserves existing snapshots; removing a program causes a
+clear stale-program error on rendering and `:template_changed` from diffing,
+including a changed nested component. Source locations are part of the skeleton,
+so moving a template can require a new baseline. Moduleless evaluation and late
+compiler-hook expansion use local functions for immediate use and retain their
+ordinary code-lifetime limits. User values containing closures can also retain
+old code.
+
+The patch planner currently materializes both full trees before comparing them.
+That can make planning slower even when HTML rendering is much faster. Measure
+`render + diff + SSE framing` against the application's existing bounded patch;
+do not turn it on based on rendering speed or gzip bytes alone. No automatic
+baseline storage or dirty-assign skipping is enabled.
+
+Rust acceleration remains deferred until a measured bulk operation justifies it.
+A NIF call stays in-process, but decoding trees, allocating results and scheduling
+large native jobs can consume a kernel-only speedup. Compare complete workloads,
+including boundary costs, before adding a native dependency.
+
+### Real-page follow-up
+
+The same 14 Octafest regions, 200 samples each with repeated HEEx baselines,
+use 29–53% fewer reductions than 0.6.1 with the compiled renderer. Rendering work
+is 0.922–1.007 times the first HEEx baseline. Wall times remain noisy on the
+shared host; these figures do not prove a universal latency win.
+
+| Render + encode | HEEx first / repeat | 0.6.1 | 0.7.0 |
+| --- | ---: | ---: | ---: |
+| Builder canvas | 4.15 / 3.61 ms | 4.10 ms | 2.89 ms |
+| Schedule workspace | 5.04 / 6.25 ms | 7.90 ms | 6.24 ms |
+| Film form (two queries) | 3.65 / 5.04 ms | 5.80 ms | 3.48 ms |
+| Login (2,000 samples) | 25 µs | 33 µs | 25 µs |
+| Native picker (2,000 samples) | 105 / 104 µs | 349 µs | 89 µs |
+
+The full picker remains 2,078 gzip SSE bytes. Raw evidence is retained in the
+repository at bench/octafest-compiled-results.json. The released baseline uses
+the complete installed 0.6.1 SDK. Both phases recompile native form/input helpers,
+so the manifest has 78 modules. Workloads and transitions are unchanged.
+No production page migration or retained baseline is enabled.
+
+Render/diff/framing remains slower than existing targeted patches in the builder,
+schedule and film-slot cases. Keep those bounded updates. Repeated materialization
+is the next planner problem; a Rust kernel would not remove that architectural cost.
+
 ## Rendering performance in 0.6.1
 
 The 0.6.1 renderer avoids repeated ASCII regex validation, duplicate dynamic-name
@@ -205,7 +282,7 @@ real page. This proof is not a Rocket integration or draft-recovery system.
 The adapter currently requires **Phoenix LiveView 1.2.12**. Its parser is
 private. The ordinary Phoenix compiler is also run for validation and
 component-call diagnostics, but its generated rendering code is discarded.
-StarView's lowering emits the actual tree. Keeping this adapter narrow avoids
+StarView's lowering emits the native program and its equivalent tree. Keeping this adapter narrow avoids
 pretending that private parser tuples are a stable public API.
 
 `case` and `cond` use separate EEx tags for their clauses, just as in ordinary

@@ -10,8 +10,8 @@ defmodule StarView.TemplateCompilerTest do
   test "STAR returns our tree and keeps literal markup separate from bindings" do
     template = Components.counter(%{count: 1, title: "Title"})
 
-    assert %Template{nodes: [%Node{kind: :element, tag: "main", children: children} | _]} =
-             template
+    assert [%Node{kind: :element, tag: "main", children: children} | _] =
+             Template.nodes(template)
 
     counter = Enum.find(children, &(&1.tag == "p"))
     assert %Node{children: [%Node{kind: :value, value: 1, meta: meta}]} = counter
@@ -95,7 +95,7 @@ defmodule StarView.TemplateCompilerTest do
   test "for and if directives retain keys and conditional branches" do
     items = [%{id: "a", title: "A", visible: true}, %{id: "b", title: "B", visible: false}]
     template = Components.directives(%{items: items})
-    [%Node{children: children} | _] = template.nodes
+    [%Node{children: children} | _] = Template.nodes(template)
     keyed = Enum.find(children, &(&1.kind == :keyed))
     assert Enum.map(keyed.children, & &1.key) == ["a", "b"]
     html = Template.to_html(template)
