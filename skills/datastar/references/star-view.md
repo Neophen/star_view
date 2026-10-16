@@ -84,6 +84,12 @@ queries across rendering and encoding together. Prepare shared navigation or
 permission-dependent presentation once for the fragments emitted in one reply;
 recompute it from trusted context on later requests instead of retaining a stale
 connection assign or global cache. Action authorization still runs independently.
+For a bounded field patch, prepare only its presentation data, including options
+and selected-value labels, using the same trusted actor, tenant and locale.
+Pass the narrow map only to that render; keep shared page-wide options full or
+absent. Trace the avoided reads and check the patch against the field as rendered
+in the full page. Report data-loading savings separately from template/compiler
+changes; the initial page and other panels still need their complete data.
 Reachable term words for HEEx closures and native trees are not equivalent
 memory measurements. Compression estimates are not
 proof of production SSE encoding. Generated request IDs, CSRF and other volatile
