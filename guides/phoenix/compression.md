@@ -47,6 +47,45 @@ body-size thresholds that delay the first event. Also check clean disconnects
 and reconnect snapshots. Do not add unconditional Brotli encoding based only
 on an example from another language or adapter.
 
+### Bandit 1.13.1 and Phoenix
+
+[Bandit 1.13.1](https://hexdocs.pm/bandit/1.13.1/Bandit.html#t:http_options/0)
+provides opt-in compression for chunked responses, including StarView SSE. Set a
+compatible dependency floor and configure the Phoenix endpoint:
+
+```elixir
+# mix.exs
+{:bandit, "~> 1.13.1"}
+
+# config/config.exs, or the endpoint's existing runtime HTTP configuration
+config :my_app, MyAppWeb.Endpoint,
+  http: [http_options: [compress_chunked: true]]
+```
+
+Keep the dependency update and option together. Earlier Bandit versions reject
+the option. Version 1.12.5 could select gzip or Zstandard but send a chunked
+response uncompressed; testing only a deflate request missed the behavior of
+normal browser headers. Version 1.13.1 supports gzip streaming and, when compiled
+on OTP 29, Zstandard streaming, with per-chunk flushing and encoding fallback.
+No StarView wrapper or rewrite of the browser's `Accept-Encoding` is needed.
+
+Exercise a real listener using your endpoint's configured options. A
+`Phoenix.ConnTest` connection does not run through Bandit's compressor. Gate
+successive events so the client must decode the complete first event before the
+server sends the next one. Include a heartbeat, an empty response, a large patch,
+encoding refusals and cancellation/reconnection. Decode and compare the received
+bytes; a header alone proves neither valid compression nor prompt delivery.
+Repeat the live checks through each proxy/CDN path before claiming deployed
+persistent-stream behavior.
+
+Compressor state remains allocated until the response ends. Bandit documents a
+few hundred KB per gzip/deflate response and up to roughly 3 MB for default
+Zstandard. Measure memory and concurrency before enabling many persistent streams.
+Sync flushes can also make a tiny signals-only response larger; compare realistic
+patches rather than assuming every event saves bytes.
+
+## Check the proxy and CDN
+
 [Caddy's reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
 documents immediate flushing for `text/event-stream`, and its
 [encode directive](https://caddyserver.com/docs/caddyfile/directives/encode)
