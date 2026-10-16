@@ -56,6 +56,16 @@ multi-event stream before changing configuration. Biff's unconditional Brotli
 headers are not a drop-in Plug integration. No new compressor dependency or
 infrastructure change is justified solely by the reference implementation.
 
+For Phoenix applications on Bandit 1.13.1 or newer, inspect the supported
+`http_options: [compress_chunked: true]` setting before writing a custom
+compressor. It enables streaming gzip and OTP 29 Zstandard with per-chunk
+flushing; ship a compatible dependency floor with the option. Earlier Bandit
+versions can negotiate an encoding and still send SSE uncompressed. Test normal
+browser headers, refusals, decoded event bytes and a complete large event before
+releasing the next one through a real listener. ConnTest bypasses compression.
+Recheck the deployed proxy/CDN path and connection memory; do not infer persistent
+delivery from a finite response. See the SDK's `guides/phoenix/compression.md`.
+
 Cache content-hashed assets immutably where configured. Give personalized HTML
 and data appropriate private cache boundaries. A smaller wire payload does not
 prove lower server cost; the native STAR prototype still evaluates all bindings.
